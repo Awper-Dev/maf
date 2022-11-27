@@ -1,0 +1,15 @@
+(define (repeat n f)
+  (define (iter ctr)
+    (cond ((not (= ctr n))
+           (f)
+           (iter (+ ctr 1)))))
+  (iter 0))
+
+(define (function-inlining-optimized)
+  (define x (+ 2 3))
+  (define y (+ x 2))
+  (define result (+ 2 y x))
+  (define z (* result 2))
+  (+ z 3))
+
+(repeat 10000 function-inlining-optimized)
