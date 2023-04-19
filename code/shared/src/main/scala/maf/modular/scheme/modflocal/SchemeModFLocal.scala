@@ -1,18 +1,25 @@
 package maf.modular.scheme.modflocal
 
-import maf.modular._
-import maf.modular.scheme._
-import maf.core._
-import maf.language.scheme._
-import maf.language.scheme.primitives._
+import maf.modular.*
+import maf.modular.scheme.*
+import maf.core.*
+import maf.language.scheme.*
+import maf.language.scheme.primitives.*
 import maf.util.benchmarks.Timeout
-import maf.language.CScheme._
+import maf.language.CScheme.*
 import maf.lattice.interfaces.BoolLattice
 import maf.lattice.interfaces.LatticeWithAddrs
 import akka.actor.ProviderSelection.Local
 import maf.util.datastructures.SmartMap
 import maf.modular.scheme.modf.SchemeModFComponent.Call
 import maf.core.Monad.MonadSyntaxOps
+import maf.language.scheme.lattices.ModularSchemeLattice
+import maf.lattice.ConstantPropagation
+import maf.lattice.ConstantPropagation.Constant
+import maf.lattice.{ConstantPropagation, HMap, HMapKey}
+import maf.language.sexp.Value
+
+import scala.collection.mutable
 
 abstract class SchemeModFLocal(prg: SchemeExp) extends ModAnalysis[SchemeExp](prg) with SchemeSemantics:
     inter: SchemeDomain with SchemeModFLocalSensitivity =>
@@ -89,7 +96,7 @@ abstract class SchemeModFLocal(prg: SchemeExp) extends ModAnalysis[SchemeExp](pr
             else BoolLattice[B].inject(false)
 
     def withRestrictedStore(rs: Set[Adr])(blk: A[Val]): A[Val] =
-        (anl, env, sto, ctx, tai) =>
+        (anl, env, sto, ctx, tai) => // moet blk returnen
             val gcs = sto.collect(rs)
             blk(anl, env, gcs, ctx, true).map { (v, d, u) =>
                 val gcd = d.collect(lattice.refs(v) ++ u)
@@ -100,14 +107,14 @@ abstract class SchemeModFLocal(prg: SchemeExp) extends ModAnalysis[SchemeExp](pr
     override def eval(exp: Exp): A[Val] =
         withEnv(_.restrictTo(exp.fv)) {
             getEnv >>= { env =>
-                withRestrictedStore(env.addrs) {
+                withRestrictedStore(env.addrs) { // TODO dit weg voor geen garbage collect ook op andere plaatsen (apply enzo)
                     super.eval(exp)
                 }
             }
         }
 
     override protected def applyPrimitive(app: App, prm: Prim, ags: List[Val]): A[Val] =
-        withRestrictedStore(ags.flatMap(lattice.refs).toSet) {
+        withRestrictedStore(ags.flatMap(lattice.refs).toSet) { // TODO
             super.applyPrimitive(app, prm, ags)
         }
 
@@ -187,7 +194,7 @@ abstract class SchemeModFLocal(prg: SchemeExp) extends ModAnalysis[SchemeExp](pr
 
         def analyzeWithTimeout(timeout: Timeout.T): Unit =
             val res = eval(cmp.exp)(this, cmp.env, cmp.sto, cmp.ctx, true)
-            val rgc = res.map((v, d, u) => (v, d.collect(lattice.refs(v) ++ u), u))
+            val rgc = res.map((v, d, u) => (v, d.collect(lattice.refs(v) ++ u), u)) // TODO zou ook wegmogen idee: af en toe een collect
             val old = results.getOrElse(cmp, Set.empty)
             if rgc != old then
                 intra.results += cmp -> rgc
@@ -204,9 +211,64 @@ abstract class SchemeModFLocal(prg: SchemeExp) extends ModAnalysis[SchemeExp](pr
             case _ => super.doWrite(dep)
 
 trait SchemeModFLocalAnalysisResults extends SchemeModFLocal with AnalysisResults[SchemeExp]:
-    this: SchemeModFLocalSensitivity with SchemeDomain =>
+    this: SchemeModFLocalSensitivity with SchemeConstantPropagationDomain =>
 
     var resultsPerIdn = Map.empty.withDefaultValue(Set.empty)
+
+    // todo variabele aanmaken met mapping identiy naar true of false (indien constant en lege set)
+    // todo eval overschrijven om bovenstaande mapping te vullen
+
+    var constantValueMap: Map[SchemeExp, Option[SchemeExp]] = Map.empty
+
+    override def eval(exp: Exp): A[Val] =
+        val run = super.eval(exp)
+
+        (anl, env, sto, ctx, tai) =>
+            val res: Set[(Val, sto.Delta, Set[Adr])] = run(anl, env, sto, ctx, tai)
+            res.foreach((vlu: Val, delta: sto.Delta, addrs: Set[Adr]) => {
+                val map: HMap = vlu
+                val elements = map.elements
+                print(elements)
+                if elements.size == 1 && addrs.isEmpty then
+                    val lat: ModularSchemeLattice[Address, ConstantPropagation.S, ConstantPropagation.B, ConstantPropagation.I, ConstantPropagation.R, ConstantPropagation.C, ConstantPropagation.Sym] = modularLattice
+                    val elem: lat.Value = elements.last
+                        elem match {
+                        // int bool symbol reals character emptylist
+                            case lat.Int(i) =>
+                                i match {
+                                    case Constant(bigInt: BigInt) =>
+                                        val possibleConstant = SchemeValue(Value.Integer(bigInt), exp.idn)
+                                        if constantValueMap.contains(exp) then
+                                            val currentOption: Option[SchemeExp] = constantValueMap.get(exp).get
+                                            currentOption match {
+                                                case Some(other) =>
+                                                    println("Old encounter check equality")
+                                                    if other != possibleConstant then
+                                                        println("Old encounter not equal")
+                                                        constantValueMap = constantValueMap.updated(exp, None)
+
+                                                case None => {
+                                                    println("Old encounter already bad")
+                                                } // Do nothing ! Not a constant!
+                                            }
+                                        else
+                                            println("New encounter")
+                                            constantValueMap = constantValueMap.updated(exp, Option(possibleConstant))
+                                            SchemeValue(maf.language.sexp.Value.Integer(bigInt), program.idn)
+                                    case _ => {}
+                                }
+                            case lat.Str(s) =>
+                                s match {
+                                    case Constant(str) => SchemeValue(maf.language.sexp.Value.String(str), program.idn)
+                                    case _ => {}
+                                }
+                            case _ => {}
+                        }
+                else constantValueMap = constantValueMap.updated(exp, None)
+            })
+
+            // todo identity zit in exp
+            res
 
     override def extendV(sto: Sto, adr: Adr, vlu: Val) =
         adr match

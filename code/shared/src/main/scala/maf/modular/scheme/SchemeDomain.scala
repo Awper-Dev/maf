@@ -98,7 +98,7 @@ object SchemeConstantPropagationDomain extends ModularSchemeLatticeWrapper:
     final val primitives = new SchemeLatticePrimitives()(modularLattice.schemeLattice)
 
 trait SchemeConstantPropagationDomain extends ModularSchemeDomain:
-    val modularLatticeWrapper = SchemeConstantPropagationDomain
+    val modularLatticeWrapper: SchemeConstantPropagationDomain.type = SchemeConstantPropagationDomain
     override def domainName: String = "modular constant propagation Scheme domain"
 
 //

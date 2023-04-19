@@ -13,5 +13,5 @@
     ((> a 0) (iter-add (1- a) (1+ b)))))
 
 (= 9
-   (rec-add 4 5)
+   (rec-add 0 9)
    (iter-add 4 5))
