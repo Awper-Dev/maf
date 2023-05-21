@@ -15,6 +15,9 @@ import maf.language.racket.{Modules, ProvideDirective, RequireDirective, Resolve
 /** Abstract syntax of Scheme programs */
 sealed trait SchemeExp extends Expression:
     type T <: SchemeExp
+    
+    def getOptimizationPlaceName: String
+    
     def levelNodes(level: Int): List[SchemeExp] =
       if level == 0 then
         List(this)
@@ -173,6 +176,8 @@ case class SchemeLambda(
         s"(lambda ($a) $b)"
     def varArgId: Option[Identifier] = None
 
+    override def getOptimizationPlaceName: String = "lambda"
+
     override def sexpCopy(): T =
       SchemeLambda(name, args, body.map(_.sexpCopy()), annotation, idn)
 
@@ -242,6 +247,8 @@ case class SchemeVarArgLambda(
         s"(lambda $a $b)"
     def varArgId: Option[Identifier] = Some(vararg)
 
+    override def getOptimizationPlaceName: String = "varArgLambda"
+
     override def sexpCopy(): T =
       SchemeVarArgLambda(name, args, vararg, body.map(_.sexpCopy()), annotation, idn)
 
@@ -288,6 +295,9 @@ case class SchemeFuncall(
     def fv: Set[String] = f.fv ++ args.flatMap(_.fv).toSet
     override val height: Int = 1 + args.foldLeft(0)((mx, a) => mx.max(a.height).max(f.height))
     val label: Label = FNC
+
+    override def getOptimizationPlaceName: String = "functionCall"
+    
     def subexpressions: List[Expression] = f :: args
     override def deleteChildren(fnc: SchemeExp => Boolean): Option[T] =
       val newSubExps: List[SchemeExp] = (List(f) ++ args).filterNot(fnc).map(_.deleteChildren(fnc)).collect({
@@ -336,6 +346,8 @@ case class SchemeIf(
     val label: Label = IFF
     def subexpressions: List[Expression] = List(cond, cons, alt)
 
+    override def getOptimizationPlaceName: String = "ifStatement"
+  
     override def sexpCopy(): T =
       SchemeIf(cond.sexpCopy(), cons.sexpCopy(), alt.sexpCopy(), idn)
 
@@ -384,6 +396,7 @@ sealed trait SchemeLettishExp extends SchemeExp:
     override def isomorphic(other: Expression): Boolean = super.isomorphic(other) && body.length == other.asInstanceOf[SchemeLettishExp].body.length
     override def eql(other: Expression): Boolean = super.eql(other) && body.length == other.asInstanceOf[SchemeLettishExp].body.length
     def letName: String
+    override def getOptimizationPlaceName: String = "lettish"
     override def prettyString(indent: Int): String =
         val id = letName
         val shiftB = indent + id.toString.length + 3
@@ -454,7 +467,8 @@ case class SchemeLet(
         s"(let ($bi) $bo)"
     def fv: Set[String] =
         bindings.map(_._2).flatMap(_.fv).toSet ++ (SchemeBody.fv(body) -- bindings.map(_._1.name).toSet)
-
+    override def getOptimizationPlaceName: String = "let"
+    
     override def sexpCopy(): T =
       SchemeLet(bindings.map(b => (b._1, b._2.sexpCopy())), body.map(_.sexpCopy()), idn)
 
@@ -516,7 +530,7 @@ case class SchemeLetStar(
                 }
             )
             ._2 ++ (SchemeBody.fv(body) -- bindings.map(_._1.name).toSet)
-
+    override def getOptimizationPlaceName: String = "letStar"
     override def sexpCopy(): T =
       SchemeLetStar(bindings.map(b => (b._1, b._2.sexpCopy())), body.map(_.sexpCopy()), idn)
 
@@ -576,6 +590,8 @@ case class SchemeLetrec(
     val label: Label = LTR
     def letName: String = "letrec"
 
+    override def getOptimizationPlaceName: String = "letRec"
+    
     override def sexpCopy(): T =
       SchemeLetrec(bindings.map(b => (b._1, b._2.sexpCopy())), body.map(_.sexpCopy()), idn)
 
@@ -656,6 +672,8 @@ case class SchemeSet(
     override def sexpCopy(): T =
       SchemeSet(variable, value.sexpCopy(), idn)
 
+    override def getOptimizationPlaceName: String = "set"
+  
     override def deepDropIdentifier(id: Identifier): Option[SchemeExp] =
       value.deepDropIdentifier(id) match
         case Some(exp) =>
@@ -684,6 +702,8 @@ case class SchemeSetLex(
     override type T = SchemeSetLex
     override def sexpCopy(): T =
       SchemeSetLex(variable, lexAddr, value.sexpCopy(), idn)
+
+    override def getOptimizationPlaceName: String = "setLex"
 
     override def deepDropIdentifier(id: Identifier): Option[SchemeExp] =
       value.deepDropIdentifier(id) match
@@ -716,6 +736,8 @@ case class SchemeBegin(exps: List[SchemeExp], idn: Identity) extends SchemeExp:
     override val height: Int = 1 + exps.foldLeft(0)((mx, e) => mx.max(e.height))
     val label: Label = BEG
     def subexpressions: List[Expression] = exps
+
+    override def getOptimizationPlaceName: String = "begin"
 
     override def sexpCopy(): T =
       SchemeBegin(exps.map(_.sexpCopy()), idn)
@@ -867,7 +889,7 @@ case class SchemeDefineVariable(
     override val height: Int = 1 + value.height
     val label: Label = DFV
     def subexpressions: List[Expression] = List(name, value)
-
+    override def getOptimizationPlaceName: String = "defineVariable"
     override def sexpCopy(): T =
       SchemeDefineVariable(name, value.sexpCopy(), idn)
 
@@ -973,13 +995,16 @@ sealed trait SchemeVarExp extends SchemeExp:
     val idn: Identity = id.idn
     def fv: Set[String] = Set(id.name)
     val label: Label = VAR
+
+    override def getOptimizationPlaceName: String = "var"
+
     def subexpressions: List[Expression] = List(id)
 
 case class SchemeVar(id: Identifier) extends SchemeVarExp:
     override type T = SchemeVar
     override def sexpCopy(): T =
       SchemeVar(id)
-
+      
     override def deepDropIdentifier(id: Identifier): Option[SchemeExp] =
       if this.id eql id then
         None
@@ -1024,6 +1049,7 @@ object SchemeSplicedPair:
 
 /** A   value (number, symbol, string, ...) */
 case class SchemeValue(value: Value, idn: Identity) extends SchemeExp:
+    override def getOptimizationPlaceName: String = "value"
     override def toString: String = value.toString
     def fv: Set[String] = Set()
     override val height: Int = 1
@@ -1044,6 +1070,7 @@ case class SchemeValue(value: Value, idn: Identity) extends SchemeExp:
 
 /** An assertion (assert <exp>) */
 case class SchemeAssert(exp: SchemeExp, idn: Identity) extends SchemeExp:
+    override def getOptimizationPlaceName: String = "assert"
     override type T = SchemeAssert
     override def toString: String = s"(assert $exp)"
     def fv: Set[String] = exp.fv
@@ -1083,6 +1110,7 @@ object SchemeSetRef:
 
 /** A code change in a Scheme program. */
 case class SchemeCodeChange(old: SchemeExp, nw: SchemeExp, idn: Identity) extends ChangeExp[SchemeExp] with SchemeExp:
+    override def getOptimizationPlaceName: String = "codeChange"
     override type T = SchemeCodeChange
     override def toString: String = s"(<change> $old $nw)"
     override def mapLower(f: SchemeExp => SchemeExp): SchemeExp =
@@ -1102,6 +1130,7 @@ trait CSchemeExp extends SchemeExp
 
 /** Fork a thread with an expression to evaluate. */
 case class CSchemeFork(body: SchemeExp, idn: Identity) extends CSchemeExp:
+    override def getOptimizationPlaceName: String = "CScheme"
     def fv: Set[String] = body.fv
     def label: Label = FRK
     def subexpressions: List[Expression] = List(body)
@@ -1110,6 +1139,7 @@ case class CSchemeFork(body: SchemeExp, idn: Identity) extends CSchemeExp:
 
 /** Join a thread, given an expression that should evaluate to a TID. */
 case class CSchemeJoin(tExp: SchemeExp, idn: Identity) extends CSchemeExp:
+    override def getOptimizationPlaceName: String = "CScheme"
     def fv: Set[String] = tExp.fv
     def label: Label = JOI
     def subexpressions: List[Expression] = List(tExp)
@@ -1124,6 +1154,7 @@ trait ASchemeExp extends SchemeExp
 
 /** A synthetic Scheme expression that only has an identity and no subexpressions */
 case class ASchemeSynthetic(idn: Identity) extends ASchemeExp:
+    override def getOptimizationPlaceName: String = "CScheme"
     def fv: Set[String] = Set()
     def label: Label = SYN
     def subexpressions: List[Expression] = List()
@@ -1139,6 +1170,7 @@ case class ASchemeActor(
     def fv: Set[String] =
         selection.fv -- parameters.map(_.name)
     def label: Label = ACT
+    override def getOptimizationPlaceName: String = "CScheme"
     def subexpressions: List[Expression] = selection.subexpressions
     override def toString: String =
         val pars = parameters.mkString(" ")
@@ -1150,6 +1182,8 @@ case class ASchemeSelect(
     extends ASchemeExp:
     def fv: Set[String] =
         handlers.values.flatMap(_._2.flatMap(_.fv)).toSet
+
+    override def getOptimizationPlaceName: String = "CScheme"
     def label: Label = SEL
     def subexpressions: List[Expression] = handlers.values.flatMap(_._2).toList
     override def toString: String =
@@ -1159,18 +1193,21 @@ case class ASchemeSelect(
 case class ASchemeSend(actorRef: SchemeExp, messageType: Identifier, arguments: List[SchemeExp], idn: Identity) extends ASchemeExp:
     def fv: Set[String] = actorRef.fv ++ arguments.flatMap(_.fv)
     def label: Label = SEN
+    override def getOptimizationPlaceName: String = "CScheme"
     def subexpressions: List[Expression] = actorRef :: arguments
     override def toString: String = s"(send $actorRef $messageType ${arguments.mkString(" ")})"
 
 case class ASchemeBecome(behavior: SchemeExp, arguments: List[SchemeExp], idn: Identity) extends ASchemeExp:
     def fv: Set[String] = behavior.fv ++ arguments.flatMap(_.fv)
     def label: Label = BEC
+    override def getOptimizationPlaceName: String = "CScheme"
     def subexpressions: List[Expression] = behavior :: arguments
     override def toString: String = s"(become $behavior ${arguments.mkString(" ")})"
 
 case class ASchemeCreate(behavior: SchemeExp, arguments: List[SchemeExp], idn: Identity) extends ASchemeExp:
     def fv: Set[String] = behavior.fv ++ arguments.flatMap(_.fv)
     def label: Label = CREA
+    override def getOptimizationPlaceName: String = "CScheme"
     def subexpressions: List[Expression] = behavior :: arguments
     override def toString: String = s"(create $behavior ${arguments.mkString(" ")})"
 
@@ -1178,6 +1215,7 @@ case class ASchemeCreate(behavior: SchemeExp, arguments: List[SchemeExp], idn: I
 case class ASchemeAsk(actorRef: SchemeExp, messageType: Identifier, args: List[SchemeExp], idn: Identity) extends ASchemeExp:
     def fv: Set[String] = actorRef.fv ++ args.flatMap(_.fv)
     def label: Label = ASK
+    override def getOptimizationPlaceName: String = "CScheme"
     def subexpressions: List[Expression] = actorRef :: args
     override def toString: String = s"(ask $actorRef $messageType ${args.mkString(" ")})"
 
@@ -1185,6 +1223,7 @@ case class ASchemeAsk(actorRef: SchemeExp, messageType: Identifier, args: List[S
 case class ASchemeAwait(future: SchemeExp, idn: Identity) extends ASchemeExp:
     def fv: Set[String] = future.fv
     def label: Label = AWAIT
+    override def getOptimizationPlaceName: String = "CScheme"
     def subexpressions: List[Expression] = List(future)
     override def toString: String = s"(await $future)"
 
@@ -1200,6 +1239,7 @@ case class ContractSchemeDepContract(
     idn: Identity)
     extends ContractSchemeExp:
     def fv: Set[String] = domains.flatMap(_.fv).toSet ++ rangeMaker.fv
+    override def getOptimizationPlaceName: String = "CScheme"
     def label: Label = DPC
     def subexpressions: List[Expression] = rangeMaker :: domains
     override def toString: String = s"(~>d ${domains.map(_.toString).mkString(" ")} $rangeMaker)"
@@ -1211,6 +1251,7 @@ case class ContractSchemeFlatContract(
     def fv: Set[String] = expression.fv
     def label: Label = FLC
     def subexpressions: List[Expression] = List(expression)
+    override def getOptimizationPlaceName: String = "CScheme"
     override def toString: String = s"(flat $expression)"
 
 case class ContractSchemeMon(
@@ -1221,6 +1262,7 @@ case class ContractSchemeMon(
     def fv: Set[String] = contract.fv ++ expression.fv
     def label: Label = MON
     def subexpressions: List[Expression] = List(contract, expression)
+    override def getOptimizationPlaceName: String = "CScheme"
     override def toString: String = s"(mon $contract $expression)"
 
 case class ContractSchemeDefineContract(
@@ -1233,6 +1275,7 @@ case class ContractSchemeDefineContract(
     def fv: Set[String] = contract.fv ++ (expression.fv -- params.map(_.name))
     def label: Label = DFC
     def subexpressions: List[Expression] = List(contract, expression)
+    override def getOptimizationPlaceName: String = "CScheme"
     override def toString: String = s"(define/contract ($name ${params.mkString(" ")}) $expression)"
 
 /**
@@ -1248,6 +1291,7 @@ case class ContractSchemeCheck(
     def fv: Set[String] = contract.fv ++ valueExpression.fv
     def label: Label = CHK
     def subexpressions: List[Expression] = List(contract, valueExpression)
+    override def getOptimizationPlaceName: String = "CScheme"
     override def toString: String = s"(check $contract $valueExpression)"
 
 /**
@@ -1265,6 +1309,7 @@ case class ContractSchemeProvide(
     extends ContractSchemeExp:
     def fv: Set[String] = outs.flatMap(_.fv).toSet
     def label: Label = PROV
+    override def getOptimizationPlaceName: String = "CScheme"
     def subexpressions: List[Expression] = outs.flatMap(_.subexpressions)
 
 abstract class ContractSchemeProvideOut extends ContractSchemeExp
@@ -1277,6 +1322,7 @@ case class ContractSchemeContractOut(
     extends ContractSchemeProvideOut:
     def fv: Set[String] = contract.fv
     def label: Label = PCO
+    override def getOptimizationPlaceName: String = "CScheme"
     def subexpressions: List[Expression] = List(contract)
 
 ///////////////////////////////////////////////////////
@@ -1287,6 +1333,7 @@ case class ContractSchemeContractOut(
 case class AContractSchemeMessage(tag: String, argumentContracts: List[SchemeExp], ensureContract: SchemeExp, idn: Identity) extends SchemeExp:
     def fv: Set[String] = (argumentContracts.flatMap(_.fv) ++ ensureContract.fv).toSet
     def label: Label = MCC
+    override def getOptimizationPlaceName: String = "CScheme"
     def subexpressions: List[Expression] = ensureContract :: argumentContracts
 
 ///////////////////////////////////////////////////////
@@ -1315,17 +1362,20 @@ case class RacketModule(
     override def fv: Set[String] = Set() // TODO: requiresDirectives.map(_.moduleName).toSet
     override def label: Label = MOD
     override def subexpressions: List[Expression] = List(bdy)
+    override def getOptimizationPlaceName: String = "CScheme"
     override def toString: String = s"(module $bdy)"
 
 case class RacketRequire(clauses: List[SchemeExp], idn: Identity) extends SchemeExp:
     override def fv: Set[String] = clauses.flatMap(_.fv).toSet
     def label: Label = REQ
     override def subexpressions: List[Expression] = List()
+    override def getOptimizationPlaceName: String = "CScheme"
     override def toString: String = s"(require ${clauses.map(_.toString).mkString(" ")})"
 
 case class RacketProvide(clauses: List[SchemeExp], idn: Identity) extends SchemeExp:
     override def fv: Set[String] = clauses.flatMap(_.fv).toSet
     def label: Label = PROV
+    override def getOptimizationPlaceName: String = "CScheme"
     override def subexpressions: List[Expression] = List()
     override def toString: String = s"(provide ${clauses.map(_.toString).mkString(" ")})"
 
@@ -1335,6 +1385,7 @@ case class RacketProvide(clauses: List[SchemeExp], idn: Identity) extends Scheme
 case class RacketModuleLoad(module: SchemeExp, name: Identifier, idn: Identity) extends SchemeExp:
     override def fv: Set[String] = module.fv
     def label: Label = RMOD
+    override def getOptimizationPlaceName: String = "CScheme"
     override def subexpressions: List[Expression] = List(module)
     override def toString(): String = s"(module-load $module $name)"
 
@@ -1342,11 +1393,13 @@ case class RacketModuleLoad(module: SchemeExp, name: Identifier, idn: Identity) 
 case class RacketModuleExpose(exposed: Map[String, String], idn: Identity) extends SchemeExp:
     override def fv: Set[String] = Set()
     def label: Label = REXP
+    override def getOptimizationPlaceName: String = "CScheme"
     override def subexpressions: List[Expression] = List()
     override def toString: String = s"(expose ${exposed.map { case (k, v) => s"($k $v)" }.mkString(" ")})"
 
 abstract class MakeStruct extends ContractSchemeExp:
     def fv: Set[String] = Set()
+    override def getOptimizationPlaceName: String = "CScheme"
     def subexpressions: List[Expression] = List()
 
 /**
@@ -1419,6 +1472,7 @@ case class MatchExprClause(pat: MatchPat, expr: List[SchemeExp], whenExpr: Optio
  *   a list of match expression clauses
  */
 case class MatchExpr(value: SchemeExp, clauses: List[MatchExprClause], idn: Identity) extends SchemeExp:
+    override def getOptimizationPlaceName: String = "CScheme"
     def fv: Set[String] = value.fv ++ clauses.flatMap(_.fv)
     def subexpressions: List[Expression] = value :: clauses.flatMap(_.subexpressions)
     def label = MEX
@@ -1431,6 +1485,7 @@ case class MatchExpr(value: SchemeExp, clauses: List[MatchExprClause], idn: Iden
  */
 case class SymbolicHole(s: SchemeExp) extends SchemeExp:
     def idn: Identity = Identity.none
+    override def getOptimizationPlaceName: String = "CScheme"
     def fv: Set[String] = Set()
     def subexpressions: List[Expression] = List()
     def label = HOL
@@ -1446,6 +1501,7 @@ case class SymbolicHole(s: SchemeExp) extends SchemeExp:
 case class SymbolicVar(nam: String, adr: maf.core.Address) extends SchemeExp:
     def idn: Identity = Identity.none
     def fv: Set[String] = Set()
+    override def getOptimizationPlaceName: String = "CScheme"
     def subexpressions: List[Expression] = List()
     def label = SVR
 
@@ -1456,6 +1512,7 @@ case class SymbolicVar(nam: String, adr: maf.core.Address) extends SchemeExp:
 case class SchemeSource(name: Identifier, idn: Identity) extends SchemeExp:
     def fv: Set[String] = Set(name.toString)
     def label: Label = Label.SRC
+    override def getOptimizationPlaceName: String = "CScheme"
     def subexpressions: List[Expression] = List(name)
     override val height: Int = name.height + 1
     override def toString: String = s"(source $name)"
@@ -1463,6 +1520,7 @@ case class SchemeSource(name: Identifier, idn: Identity) extends SchemeExp:
 case class SchemeSink(name: Identifier, idn: Identity) extends SchemeExp:
     def fv: Set[String] = Set(name.toString)
     def label: Label = Label.SNK
+    override def getOptimizationPlaceName: String = "CScheme"
     def subexpressions: List[Expression] = List(name)
     override val height: Int = name.height + 1
     override def toString: String = s"(sink $name)"
@@ -1470,6 +1528,7 @@ case class SchemeSink(name: Identifier, idn: Identity) extends SchemeExp:
 case class SchemeSanitizer(name: Identifier, idn: Identity) extends SchemeExp:
     def fv: Set[String] = Set(name.toString)
     def label: Label = Label.SAN
+    override def getOptimizationPlaceName: String = "CScheme"
     def subexpressions: List[Expression] = List(name)
     override val height: Int = name.height + 1
     override def toString: String = s"(sanitize $name)"

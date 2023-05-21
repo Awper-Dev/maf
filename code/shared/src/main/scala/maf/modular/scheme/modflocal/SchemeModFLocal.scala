@@ -24,6 +24,9 @@ import scala.collection.mutable
 abstract class SchemeModFLocal(prg: SchemeExp) extends ModAnalysis[SchemeExp](prg) with SchemeSemantics:
     inter: SchemeDomain with SchemeModFLocalSensitivity =>
 
+    var gc: Boolean = true
+    def setGarbageCollection(value: Boolean): Unit = this.gc = value
+
     // more shorthands
     type Cmp = Component
     type Cll = CallComponent
@@ -96,12 +99,15 @@ abstract class SchemeModFLocal(prg: SchemeExp) extends ModAnalysis[SchemeExp](pr
             else BoolLattice[B].inject(false)
 
     def withRestrictedStore(rs: Set[Adr])(blk: A[Val]): A[Val] =
-        (anl, env, sto, ctx, tai) => // moet blk returnen
-            val gcs = sto.collect(rs)
-            blk(anl, env, gcs, ctx, true).map { (v, d, u) =>
-                val gcd = d.collect(lattice.refs(v) ++ u)
-                (v, sto.replay(gcd, tai), u)
+        if gc then
+            (anl, env, sto, ctx, tai) => { // moet blk returnen {}
+                    val gcs = sto.collect(rs)
+                    blk(anl, env, gcs, ctx, true).map { (v, d, u) =>
+                        val gcd = d.collect(lattice.refs(v) ++ u)
+                        (v, sto.replay(gcd, tai), u)
+                    }
             }
+        else blk
 
     import analysisM_._
     override def eval(exp: Exp): A[Val] =
@@ -219,7 +225,7 @@ trait SchemeModFLocalAnalysisResults extends SchemeModFLocal with AnalysisResult
     // todo eval overschrijven om bovenstaande mapping te vullen
 
     var constantValueMap: Map[SchemeExp, Option[SchemeExp]] = Map.empty
-
+    var sideEffectedExpressions: List[Exp] = List.empty
     override def eval(exp: Exp): A[Val] =
         val run = super.eval(exp)
 
@@ -228,34 +234,143 @@ trait SchemeModFLocalAnalysisResults extends SchemeModFLocal with AnalysisResult
             res.foreach((vlu: Val, delta: sto.Delta, addrs: Set[Adr]) => {
                 val map: HMap = vlu
                 val elements = map.elements
-                print(elements)
+                // TODO print(elements)
+
+                if !addrs.isEmpty then
+                    sideEffectedExpressions = exp :: sideEffectedExpressions // TODO set van maken
+
                 if elements.size == 1 && addrs.isEmpty then
                     val lat: ModularSchemeLattice[Address, ConstantPropagation.S, ConstantPropagation.B, ConstantPropagation.I, ConstantPropagation.R, ConstantPropagation.C, ConstantPropagation.Sym] = modularLattice
                     val elem: lat.Value = elements.last
                         elem match {
                         // int bool symbol reals character emptylist
+                            case lat.Nil =>
+                                val possibleConstant = SchemeValue(Value.Nil, exp.idn)
+                                if constantValueMap.contains(exp) then
+                                    val currentOption: Option[SchemeExp] = constantValueMap.get(exp).get
+                                    currentOption match {
+                                        case Some(other) =>
+                                            if other != possibleConstant then
+                                                println("adding")
+                                                constantValueMap = constantValueMap.updated(exp, None)
+                                            else println("else")
+                                        case None => {
+                                                    //  println("Old encounter already bad")
+                                        } // Do nothing ! Not a constant!
+                                    }
+                            case lat.Char(c) =>
+                                c match { // TODO andere case hier
+                                    case Constant(char: Char) =>
+                                        val possibleConstant = SchemeValue(Value.Character(char), exp.idn)
+                                        if constantValueMap.contains(exp) then
+                                            val currentOption: Option[SchemeExp] = constantValueMap.get(exp).get
+                                            currentOption match {
+                                                case Some(other) =>
+                                                    //println("Old encounter check equality")
+                                                    if other != possibleConstant then
+                                                    //println("Old encounter not equal")
+                                                        constantValueMap = constantValueMap.updated(exp, None)
+
+                                                case None => {
+                                                    //  println("Old encounter already bad")
+                                                } // Do nothing ! Not a constant!
+                                            }
+                                        else
+                                            // println("New encounter")
+                                            constantValueMap = constantValueMap.updated(exp, Option(possibleConstant))
+                                            SchemeValue(maf.language.sexp.Value.Character(char), program.idn)
+                                    case _ => {}
+                                }
+                            case lat.Real(r) =>
+                                r match { // TODO andere case hier
+                                    case Constant(double: Double) =>
+                                        val possibleConstant = SchemeValue(Value.Real(double), exp.idn)
+                                        if constantValueMap.contains(exp) then
+                                            val currentOption: Option[SchemeExp] = constantValueMap.get(exp).get
+                                            currentOption match {
+                                                case Some(other) =>
+                                                    //println("Old encounter check equality")
+                                                    if other != possibleConstant then
+                                                    //println("Old encounter not equal")
+                                                        constantValueMap = constantValueMap.updated(exp, None)
+
+                                                case None => {
+                                                    //  println("Old encounter already bad")
+                                                } // Do nothing ! Not a constant!
+                                            }
+                                        else
+                                            // println("New encounter")
+                                            constantValueMap = constantValueMap.updated(exp, Option(possibleConstant))
+                                            SchemeValue(maf.language.sexp.Value.Real(double), program.idn)
+                                    case _ => {}
+                                }
+                            case lat.Bool(b) =>
+                                b match { // TODO andere case hier
+                                    case Constant(boolean: Boolean) =>
+                                        val possibleConstant = SchemeValue(Value.Boolean(boolean), exp.idn)
+                                        if constantValueMap.contains(exp) then
+                                            val currentOption: Option[SchemeExp] = constantValueMap.get(exp).get
+                                            currentOption match {
+                                                case Some(other) =>
+                                                    //println("Old encounter check equality")
+                                                    if other != possibleConstant then
+                                                    //println("Old encounter not equal")
+                                                        constantValueMap = constantValueMap.updated(exp, None)
+
+                                                case None => {
+                                                    //  println("Old encounter already bad")
+                                                } // Do nothing ! Not a constant!
+                                            }
+                                        else
+                                            // println("New encounter")
+                                            constantValueMap = constantValueMap.updated(exp, Option(possibleConstant))
+                                            SchemeValue(maf.language.sexp.Value.Boolean(boolean), program.idn)
+                                    case _ => {}
+                                }
                             case lat.Int(i) =>
-                                i match {
+                                i match { // TODO andere case hier
                                     case Constant(bigInt: BigInt) =>
                                         val possibleConstant = SchemeValue(Value.Integer(bigInt), exp.idn)
                                         if constantValueMap.contains(exp) then
                                             val currentOption: Option[SchemeExp] = constantValueMap.get(exp).get
                                             currentOption match {
                                                 case Some(other) =>
-                                                    println("Old encounter check equality")
+                                                    //println("Old encounter check equality")
                                                     if other != possibleConstant then
-                                                        println("Old encounter not equal")
+                                                        //println("Old encounter not equal")
                                                         constantValueMap = constantValueMap.updated(exp, None)
 
                                                 case None => {
-                                                    println("Old encounter already bad")
+                                                  //  println("Old encounter already bad")
                                                 } // Do nothing ! Not a constant!
                                             }
                                         else
-                                            println("New encounter")
+                                           // println("New encounter")
                                             constantValueMap = constantValueMap.updated(exp, Option(possibleConstant))
                                             SchemeValue(maf.language.sexp.Value.Integer(bigInt), program.idn)
                                     case _ => {}
+                                }
+                            case lat.Symbol(ss) =>
+                                ss match {
+                                    case Constant(symbl: String) =>
+                                        val possibleConstant = SchemeValue(Value.Symbol(symbl), exp.idn)
+                                        if constantValueMap.contains(exp) then
+                                            val currentOption: Option[SchemeExp] = constantValueMap.get(exp).get
+                                            currentOption match {
+                                                case Some(other) =>
+                                                    //println("Old encounter check equality")
+                                                    if other != possibleConstant then
+                                                    //println("Old encounter not equal")
+                                                        constantValueMap = constantValueMap.updated(exp, None)
+
+                                                case None => {
+                                                    //  println("Old encounter already bad")
+                                                } // Do nothing ! Not a constant!
+                                            }
+                                        else
+                                            // println("New encounter")
+                                            constantValueMap = constantValueMap.updated(exp, Option(possibleConstant))
+                                            SchemeValue(maf.language.sexp.Value.Symbol(symbl), program.idn)
                                 }
                             case lat.Str(s) =>
                                 s match {

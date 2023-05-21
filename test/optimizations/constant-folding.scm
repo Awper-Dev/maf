@@ -1,9 +1,23 @@
-(define *global* 1)
-(define (special-fac n)
-  (if (= n 0)
-      (begin (set! *global* (random 1))
-             1)
-      (* n (special-fac (- n 1)))))
+(let ((z 5))
+  (let ((x (begin (set! z 3) 2)))
+    (let ((y (begin (set! x 4) (+ x 3))))
+        (set! y 30)
+      z))
 
-(special-fac 5)
-*global*
+  (let ((x (begin (set! z 3) 2)))
+      (let ((y (begin (+ x 3))))
+          (set! y 30)
+          y
+        z))
+
+  (let ((x (begin (set! z 3) 2)))
+        (let ((y (begin (+ x 3))))
+            (set! y 30)
+          z))
+
+  (let ((q 3))
+    (let ((f 2))
+        q)))
+
+  (let ((f '()))
+    f)

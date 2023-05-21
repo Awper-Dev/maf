@@ -4,6 +4,7 @@ import maf.cli.experiments.SchemeAnalyses
 import maf.cli.runnables.OptimizeProgram.args
 import maf.core.{Address, Expression, Identifier, Identity}
 import maf.language.CScheme.CSchemeParser
+import maf.language.ContractScheme.ContractSchemeMutableVarBoxer.rewrite
 import maf.language.scheme.lattices.ModularSchemeLattice
 import maf.language.scheme.*
 import maf.language.scheme.primitives.SchemePrelude
@@ -13,6 +14,7 @@ import maf.lattice.interfaces.IntLattice
 import maf.lattice.{ConstantPropagation, HMap, HMapKey}
 import maf.modular.DependencyTracking
 import maf.modular.scheme.modf.{SchemeModFComponent, SchemeModFNoSensitivity, SimpleSchemeModFAnalysis}
+import maf.modular.scheme.modflocal.{SchemeModFLocal, SchemeModFLocalAnalysisResults}
 import maf.modular.scheme.{ModularSchemeLatticeWrapper, SchemeConstantPropagationDomain, VarAddr}
 import maf.modular.worklist.FIFOWorklistAlgorithm
 import maf.util.{Default, Reader}
@@ -65,6 +67,40 @@ object OptimizeProgram extends App:
         iterList(inside, Set())
         dependencies
 
+    // HERE
+    def hasActualUse(id: Identifier, inside: List[SchemeExp]): Boolean =
+        var result = false
+        def iterList(current: List[SchemeExp]): Unit =
+            current.foreach((expr: SchemeExp) => iter(expr))
+        //current.exists((expr: SchemeExp) => iter(expr, above)) // TODO join
+
+        def iter(current: SchemeExp): Unit =
+            current match {
+                case SchemeLambda(name, args, body, ann, idn) => iterList(body) //hasUse(id, body)
+                case SchemeVarArgLambda(name, args, vararg, body, ann, idn) => iterList(body) //hasUse(id, body)
+                case SchemeFuncall(f, args, idn) => iterList(List.concat(List(f), args)) // hasUse(id, f) || hasUse(id, args)
+                case SchemeIf(cond, cons, alt, idn) => iterList(List(cond, cons, alt)) // hasUse(id, cond) || hasUse(id, cons) || hasUse(id, alt)
+                case SchemeLet(bindings, body, idn) =>
+                    iterList(body)
+                    bindings.foreach((identifier: Identifier, exp: SchemeExp) => {
+                        iter(exp)
+                    })
+                //iterList(List.concat(body, bindings.map((_, exp: SchemeExp) => exp)), above) // TODO
+                case SchemeLetStar(bindings, body, idn) => iterList(List.concat(body, bindings.map((_, exp: SchemeExp) => exp))) // TODO
+                case SchemeLetrec(bindings, body, idn) => iterList(List.concat(body, bindings.map((_, exp: SchemeExp) => exp))) // TODO
+                case SchemeSet(variable, value, idn) => iter(value) // hasUse(id, value)
+                case SchemeBegin(exps, idn) => iterList(exps) // exps.exists((exp: SchemeExp) => hasUse(id, exp))
+                case SchemeDefineVariable(name, value, idn) => iter(value) // hasUse(id, value) // TODO ADD
+                case SchemeVar(idn) =>
+                    if identityCompare(id, idn) then
+                        result = true
+                case SchemeValue(value, idn) => {}
+                case other: Any => {}
+            }
+
+        iterList(inside)
+        result
+
     /**
      * Compares two identifiers based on their names
      * @param id1, first Identifier to compare
@@ -84,45 +120,75 @@ object OptimizeProgram extends App:
             false
         else identityCompare(inside.head, id) || identifierContains(id, inside.tail)
 
+
+    def isSet(schemeVar: SchemeVar): Boolean = schemeVar.toString.equalsIgnoreCase("___toplevel_set-cdr!0")
+
+    def isSetOf(exp: SchemeExp, identifier: Identifier): Boolean =
+        exp match {
+            case SchemeFuncall(f, args, idn) =>
+                val schemeVar: SchemeVar = f.asInstanceOf[SchemeVar]
+                if isSet(schemeVar) && args.nonEmpty then
+                    val id: Identifier = args.head.asInstanceOf[SchemeVar].id
+                    identityCompare(id, identifier)
+                else false
+            case _ => false
+        }
+
+    def isAccess(schemeVar: SchemeVar): Boolean = schemeVar.toString.equalsIgnoreCase("___toplevel_cdr0")
+
     /** Removes all set!s of identifiers in the given list
      *
      * @param ids, identifiers that need their set!s removed
      * @param current, the expression to check for set!s
      * @return SchemeExp, the modified resulting expression
      */
-    def removeSets(ids: List[Identifier], current: SchemeExp): SchemeExp =
+    def removeSets(ids: List[Identifier], current: SchemeExp, sideEffects: List[SchemeExp]): SchemeExp =
         def remove(schemeExp: SchemeExp): Boolean =
             schemeExp match {
                 case SchemeSet(variable, value, idn) => identifierContains(variable, ids)
                 case _ => false
             }
 
+        //def isSet(schemeVar: SchemeVar): Boolean = schemeVar.toString.equalsIgnoreCase("___toplevel_set-cdr!0")
+        //def isAccess(schemeVar: SchemeVar): Boolean = schemeVar.toString.equalsIgnoreCase("___toplevel_cdr0")
+
         current match {
             case SchemeLambda(name, args, body, ann, idn) => SchemeLambda(name, args, body.filter((expr) => !remove(expr)), ann, idn)
             case SchemeVarArgLambda(name, args, vararg, body, ann, idn) => SchemeVarArgLambda(name, args, vararg, body.filter((expr) => !remove(expr)), ann, idn)
             case SchemeFuncall(f, args, idn) =>
-                SchemeFuncall(removeSets(ids, f), args, idn)
-            case SchemeIf(cond, cons, alt, idn) => SchemeIf(cond, cons, alt, idn)
+                val schemeVar: SchemeVar = f.asInstanceOf[SchemeVar]
+                // is set
+                if ids.exists((identifier:Identifier) => isSetOf(current, identifier)) then SchemeValue(Value.Symbol("removed"), idn)
+                else SchemeFuncall(removeSets(ids, f, sideEffects), args.map((exp: SchemeExp) => removeSets(ids, exp, sideEffects)), idn)
+            case SchemeIf(cond, cons, alt, idn) => SchemeIf(removeSets(ids, cond, sideEffects), removeSets(ids, cons, sideEffects), removeSets(ids, alt, sideEffects), idn)
             case SchemeLet(bindings, body, idn) =>
                 val bindingIdentifiers = bindings.map((identifier, _) => identifier)
-                val modifiedBody = body.filter((expr) => !remove(expr)).map((expr) => removeSets(ids, expr))
+                val modifiedBody = body.filter((expr) => !remove(expr)).map((expr) => removeSets(ids, expr, sideEffects))
 
                 if modifiedBody.isEmpty then SchemeValue(Value.Symbol("removed"), idn)
-                else SchemeLet(bindings.map((identifier, expr) => (identifier, removeSets(ids, expr))), modifiedBody, idn)
+                else SchemeLet(bindings.map((identifier, expr) => (identifier, removeSets(ids, expr, sideEffects))), modifiedBody, idn)
             case SchemeLetStar(bindings, body, idn) =>
                 val bindingIdentifiers = bindings.map((identifier, _) => identifier)
-                val modifiedBody = body.filter((expr) => !remove(expr)).map((expr) => removeSets(ids, expr))
+                val modifiedBody = body.filter((expr) => !remove(expr)).map((expr) => removeSets(ids, expr, sideEffects))
 
                 if modifiedBody.isEmpty then SchemeValue(Value.Symbol("removed"), idn)
-                else SchemeLetStar(bindings.map((identifier, expr) => (identifier, removeSets(ids, expr))), modifiedBody, idn)
+                else SchemeLetStar(bindings.map((identifier, expr) => (identifier, removeSets(ids, expr, sideEffects))), modifiedBody, idn)
                 //SchemeLetStar(bindings, body, idn)
             //SchemeLetStar(bindings.filter((identifier, expr) => hasUse(identifier, body) || hasUse(identifier, bindings.map((identifier, expr) => expr))), body, idn)
             case SchemeLetrec(bindings, body, idn) =>
-                SchemeLetrec(bindings.map((identifier, expr) => (identifier, removeUnusedVariables(expr))), body, idn)
-            case SchemeSet(variable, value, idn) => SchemeSet(variable, value, idn)
-            case SchemeBegin(exps, idn) => SchemeBegin(exps, idn)
+                val modifiedBody = body.filter((expr) => !remove(expr)).map((expr) => removeSets(ids, expr, sideEffects))
+
+                if modifiedBody.isEmpty then SchemeValue(Value.Symbol("removed"), idn)
+                else SchemeLet(bindings.map((identifier, expr) => (identifier, removeSets(ids, expr, sideEffects))), modifiedBody, idn)
+                //SchemeLetrec(bindings.map((identifier, expr) => (identifier, removeUnusedVariables(expr, sideEffects))), body, idn)
+            case SchemeSet(variable, value, idn) =>
+                if ids.exists((identifier: Identifier) => identityCompare(identifier, variable)) then
+                    SchemeValue(Value.Symbol("removed"), idn)
+                else
+                    SchemeSet(variable, value, idn)
+            case SchemeBegin(exps, idn) => SchemeBegin(exps.map((exp: SchemeExp) => removeSets(ids, exp, sideEffects)), idn)
             case SchemeDefineVariable(name, value, idn) =>
-                SchemeDefineVariable(name, value, idn)
+                SchemeDefineVariable(name, removeSets(ids, value, sideEffects), idn)
             case SchemeVar(id) => SchemeVar(id)
             case SchemeValue(value, idn) => SchemeValue(value, idn)
             case other: Any => other
@@ -158,11 +224,17 @@ object OptimizeProgram extends App:
      * @param current
      * @return
      */
-    def removeUnusedVariables(current: List[SchemeExp]): List[SchemeExp] = current.map((expr) => removeUnusedVariables(expr))
+    def removeUnusedVariables(current: List[SchemeExp], sideEffects: List[SchemeExp]): List[SchemeExp] = current.map((expr) => removeUnusedVariables(expr, sideEffects))
 
 
     var dependencyMap: Map[Identifier, Set[Identifier]] = Map()
     var unUsedVariables: List[Identifier] = List()
+
+    def reset(): Unit =
+        dependencyMap = Map()
+        unUsedVariables = List()
+        counter = 0
+        expressionCounter = Map()
 
     def fillDependencyMap(current: SchemeExp): Unit = // TODO MOET LOPEN OVER HELE AST
         current match {
@@ -189,7 +261,59 @@ object OptimizeProgram extends App:
             case SchemeValue(value, idn) => SchemeValue(value, idn)
             case other: Any => other
         }
-    def removeUnusedVariables(current: SchemeExp): SchemeExp =
+
+    def hasBodyUse(current: List[SchemeExp], identifier: Identifier): Boolean =
+        current.exists((exp: SchemeExp) => hasBodyUse(exp, identifier))
+    def hasBodyUse(current: SchemeExp, identifier: Identifier): Boolean =
+        println("currnet: " + current)
+        current match {
+            case SchemeVarLex(id, lex) =>
+                //println("VAR LEX")
+                identityCompare(id, identifier)
+            case SchemeSetLex(id, lex, vexp, idn) =>
+                if (identityCompare(id, identifier)) then
+                    false
+                else
+                    //println("INSIDE BODY USE")
+                    hasBodyUse(vexp, identifier)
+            case SchemeLambda(name, args, body, ann, idn) => hasBodyUse(body, identifier)
+            case SchemeVarArgLambda(name, args, vararg, body, ann, idn) => hasBodyUse(body, identifier)//SchemeVarArgLambda(name, args, vararg, body, ann, idn)
+            case SchemeFuncall(f, args, idn) =>
+                val schemeVar: SchemeVar = f.asInstanceOf[SchemeVar]
+
+                if isSet(schemeVar) && args.nonEmpty then
+                    val id: Identifier = args.head.asInstanceOf[SchemeVar].id
+                    if (identityCompare(id, identifier)) then
+                        false
+                    else
+                        hasBodyUse(List.concat(args, List(f)), identifier)
+                else if isAccess(schemeVar) && args.nonEmpty then
+                    val id: Identifier = args.head.asInstanceOf[SchemeVar].id
+                    identityCompare(id, identifier)
+
+                else hasBodyUse(List.concat(args, List(f)), identifier)
+            case SchemeIf(cond, cons, alt, idn) => hasBodyUse(List(cond, cons, alt), identifier)
+            case SchemeLet(bindings, body, idn) => hasBodyUse(body, identifier)
+            case SchemeLetStar(bindings, body, idn) => hasBodyUse(body, identifier)
+            case SchemeLetrec(bindings, body, idn) => hasBodyUse(body, identifier)
+            case SchemeSet(variable, value, idn) =>
+                if (identityCompare(variable, identifier)) then
+                    false
+                else
+                    //println("INSIDE SET BODY USE")
+                    hasBodyUse(value, identifier)
+            case SchemeBegin(exps, idn) => hasBodyUse(exps, identifier)
+            case SchemeDefineVariable(name, value, idn) => false
+            case SchemeVar(id) =>
+                //println("VAR")
+                identityCompare(identifier, id)
+            case SchemeValue(value, idn) => false
+            case other: Any =>
+                //println("OTHEEEEEEER " + other)
+                false
+        }
+
+    def removeUnusedVariables(current: SchemeExp, sideEffects: List[SchemeExp]): SchemeExp =
         current match {
             case SchemeLambda(name, args, body, ann, idn) => SchemeLambda(name, args, body, ann, idn)
             case SchemeVarArgLambda(name, args, vararg, body, ann, idn) => SchemeVarArgLambda(name, args, vararg, body, ann, idn)
@@ -198,8 +322,17 @@ object OptimizeProgram extends App:
             case SchemeLet(bindings, body, idn) =>
                 val bindingIdentifiers = bindings.map((identifier, _) => identifier)
                 findUnusedVariables(dependencyMap, bindingIdentifiers)
-                val modifiedBody = removeUnusedVariables(body)
-                val modifiedBindings = bindings.filter((identifier, _) => !identifierContains(identifier, unUsedVariables))
+                var modifiedBody = removeUnusedVariables(body, sideEffects)
+                val modifiedBindings = bindings.filter((identifier, _) =>
+                    //println("working on " + current)
+                    //println("ic : " + !identifierContains(identifier, unUsedVariables))
+                    //println("bu : " + hasBodyUse(body, identifier))
+                    //println("se : " + sideEffects.contains(current))
+                    !identifierContains(identifier, unUsedVariables) || hasBodyUse(body, identifier) || sideEffects.exists((exp: SchemeExp) => exp.idn == current.idn))
+                val usedIdentifiers = modifiedBindings.map((identifier: Identifier, _) => identifier)
+                val unUsedIdentifiers = bindings.filter((identifier: Identifier, exp: SchemeExp) => !usedIdentifiers.contains(identifier)).map((identifier: Identifier, _) => identifier)
+                println("REMOVING SETS OF " + unUsedIdentifiers)
+                modifiedBody = modifiedBody.map((exp: SchemeExp) => removeSets(unUsedIdentifiers, exp, sideEffects))
                 SchemeLet(modifiedBindings, modifiedBody, idn)
                 // removeSets(unUsedBindings, SchemeLet(modifiedBindings, modifiedBody, idn))
             case SchemeLetStar(bindings, body, idn) => SchemeLetStar(bindings, body, idn)
@@ -212,7 +345,7 @@ object OptimizeProgram extends App:
                 removeSets(unUsedBindings, SchemeLetStar(modifiedBindings, modifiedBody, idn))*/
 
                 //SchemeLetStar(bindings.filter((identifier, expr) => hasUse(identifier, body) || hasUse(identifier, bindings.map((identifier, expr) => expr))), body, idn)
-            case SchemeLetrec(bindings, body, idn) => SchemeLetrec(bindings.map((identifier, expr) => (identifier, removeUnusedVariables(expr))), body, idn)
+            case SchemeLetrec(bindings, body, idn) => SchemeLetrec(bindings.map((identifier, expr) => (identifier, removeUnusedVariables(expr, sideEffects))), body, idn)
                 /*val bindingIdentifiers = bindings.map((identifier, _) => identifier)
                 val bindingExpressions = bindings.map((_, expr) => expr)
                 val usedBindings = haveUse(bindingIdentifiers, List.concat(body, bindingExpressions))
@@ -228,6 +361,9 @@ object OptimizeProgram extends App:
             case SchemeValue(value, idn) => SchemeValue(value, idn)
             case other: Any => other
         }
+
+    var counter = 0
+    var expressionCounter: Map[String, Int] = Map.empty
 
     //def optimize(program: SchemeExp, store: Map[Address, HMap], identities: Map[Identity, Address], lattice: ModularSchemeLattice[Address, ConstantPropagation.S, ConstantPropagation.B, ConstantPropagation.I, ConstantPropagation.R, ConstantPropagation.C, ConstantPropagation.Sym]): SchemeExp =
     def optimize(program: SchemeExp, mapping: Map[SchemeExp, Option[SchemeExp]]): SchemeExp =
@@ -256,7 +392,14 @@ object OptimizeProgram extends App:
         mapping.get(program) match {
             case Some(replacement: Option[SchemeExp]) =>
                 replacement match {
-                    case Some(expr: SchemeExp) => expr
+                    case Some(expr: SchemeExp) =>
+                        expressionCounter.get(program.getOptimizationPlaceName) match {
+                            case Some(counter: Int) => expressionCounter = expressionCounter.updated(program.getOptimizationPlaceName, counter + 1)
+                            case _ => expressionCounter = expressionCounter.updated(program.getOptimizationPlaceName, 1)
+                        }
+                        //expressionCounter = expressionCounter + program.getOptimizationPlaceName
+                        counter += 1
+                        expr
                     case _ => optimizeSubExpressions()
                 }
             case _ => optimizeSubExpressions()
@@ -271,13 +414,41 @@ object OptimizeProgram extends App:
         renamed.prettyString()
 
     def optimizeUnusedProgram(text: String): String =
-        val exp = SchemeParser.parseProgram(text)
-        fillDependencyMap(exp)
-        val removed = removeUnusedVariables(exp)
+        val origParsed = SchemeParser.parseProgram(text)
+        val parsed = CSchemeParser.parse(text)
+        val prelud = SchemePrelude.addPrelude(parsed, incl = Set("__toplevel_cons", "__toplevel_cdr", "__toplevel_set-cdr!"))
+        val transf = SchemeMutableVarBoxer.transform(prelud)
+        val program = CSchemeParser.undefine(transf)
+        val renamed: SchemeExp = SchemeRenamer.rename(program)
+        val origRenamed: SchemeExp = SchemeRenamer.rename(origParsed)
+
+        val garbageCollection = true
+        val analysis = SchemeAnalyses.modflocalAnalysis(renamed, 1)
+        analysis.setGarbageCollection(garbageCollection)
+        analysis.analyze()
+
+        fillDependencyMap(renamed)
+        println("map:")
+        println(dependencyMap)
+        println("side effects: ")
+        println(analysis.sideEffectedExpressions)
+        val removed = removeUnusedVariables(renamed, analysis.sideEffectedExpressions)//analysis.sideEffectedExpressions)
 
         removed.prettyString()
 
 
+    def optimizeProgramWithAnalysis(text: String, analysis: SchemeModFLocal & SchemeModFLocalAnalysisResults): (Int, Map[String, Int]) =
+        val parsed = CSchemeParser.parse(text)
+        val prelud = SchemePrelude.addPrelude(parsed, incl = Set("__toplevel_cons", "__toplevel_cdr", "__toplevel_set-cdr!"))
+        val transf = SchemeMutableVarBoxer.transform(prelud)
+        val program = CSchemeParser.undefine(transf)
+        val renamed: SchemeExp = SchemeRenamer.rename(program)
+        
+        analysis.analyze()
+
+        val result: SchemeExp = optimize(renamed, analysis.constantValueMap)
+        (counter, expressionCounter)
+        
     def optimizeProgram(text: String): String =
         println("parsing...")
 
@@ -287,9 +458,12 @@ object OptimizeProgram extends App:
         val program = CSchemeParser.undefine(transf)
 
         val renamed: SchemeExp = SchemeRenamer.rename(program)
-        //val removedVariables: SchemeExp = removeUnusedVariables(renamed)
         //val analysis = SchemeAnalyses.contextInsensitiveAnalysis(renamed)
-        val analysis = SchemeAnalyses.modflocalAnalysis(renamed, 1)
+
+        val garbageCollection = true
+        val k = 1
+        val analysis = SchemeAnalyses.modflocalAnalysis(renamed, k)
+        analysis.setGarbageCollection(garbageCollection)
 
         //val lat: ModularSchemeLattice[Address, ConstantPropagation.S, ConstantPropagation.B, ConstantPropagation.I, ConstantPropagation.R, ConstantPropagation.C, ConstantPropagation.Sym] = analysis.modularLattice
         println(renamed.prettyString())
@@ -300,7 +474,34 @@ object OptimizeProgram extends App:
 
 
         val result: SchemeExp = optimize(renamed, analysis.constantValueMap)
-        //var result = renamed
-        result.prettyString()
+        "\n" + "Parameters: " + "k: " + k + " garbage collection: " + garbageCollection + "\n" + "Amount of optimizations: " + counter + "\n" + "Expression counts: " + expressionCounter + "\n" + result.prettyString()
 
-    println(renameProgram(Reader.loadFile("test/optimizations/constant-folding.scm")))
+    println(optimizeProgram(Reader.loadFile("test/optimizations/constant-folding.scm")))
+
+    /*
+
+    k  = 0 -< alle function calls naar zelfde function samen.
+    k = 1 -> onderscheiden op basis van call site (probleem bij fibonacci) garbage collection fixt het soms (door op te kuisen)
+    -> gc uitzetten als k testen
+    k > 1 -> k laatste call sites worden gebruikt -> factorial 3 -> recursie diepte 3 dus k 3 nodig (denk fac aux -> )
+
+    no gc k 0
+    no gc hogere k
+    met garbage collection
+
+    aantal optimalisaties bekijken
+
+    precisie waarden uit PrecisionBenchmarks vergelijken met eigen resultaten
+
+    background sectie -> constant propagation sectie uitleggen
+
+    andere lattices: PowerSetLattice
+
+    variables removal: deels op basis van AST, deels op analyze
+    -> vergelijking geven tussen approaches van full analyse of deels
+    -> bespreek de trade off, future work,...
+
+    inhoudstabel van BT rapport
+
+    optimize(optimize(p)) = optimize(p)
+    */
