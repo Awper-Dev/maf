@@ -40,6 +40,19 @@ object SchemeBenchmarkPrograms:
       "bfirst.scm", // Unbound identifier: create-graph
     )
     lazy val gabriel: Set[String] = fromFolder("test/R5RS/gabriel")()
+    lazy val gabRes: Set[String] = fromFolder("test/R5RS/gabriel")(
+      "boyer.scm",
+      "cpstak.scm",
+      "deriv.scm",
+      "destruc.scm",
+      "divrec.scm",
+      "puzzle.scm",
+      "takl.scm",
+      
+      
+              
+      
+    )
     lazy val optimizations: Set[String] = fromFolder("test/optimizations")()
     lazy val gambit: Set[String] = fromFolder("test/R5RS/gambit")(
       "trav1.scm", // Needs append in the abstract interpreter (not as a preluded primitive)

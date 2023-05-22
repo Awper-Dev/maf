@@ -8,6 +8,7 @@ object Table:
      *   a new empty table
      */
     def empty[V]: Table[V] = Table(Map[(String, String), V](), None)
+    def emptyIntTable: Table[Option[Int]] = Table(Map[(String, String), Option[Int]](), Some(Some(-1)))
 
 case class Table[V](data: Map[(String, String), V], default: Option[V]):
 

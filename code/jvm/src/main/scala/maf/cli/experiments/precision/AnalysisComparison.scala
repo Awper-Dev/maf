@@ -25,7 +25,7 @@ abstract class AnalysisComparison[Num: IntLattice, Rea: RealLattice, Bln: BoolLa
     def concreteRuns() = 5
 
     // keep the results of the benchmarks in a table
-    var results: Table[Option[Int]] = Table.empty[Option[Int]]
+    var results: Table[Option[Int]] = Table.emptyIntTable
 
     /**
      * For a given benchmark, compare each analysis with the base analysis That is, count for each analysis how many values were refined w.r.t. the
