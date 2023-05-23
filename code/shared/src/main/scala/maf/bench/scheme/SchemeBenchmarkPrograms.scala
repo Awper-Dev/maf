@@ -48,10 +48,6 @@ object SchemeBenchmarkPrograms:
       "divrec.scm",
       "puzzle.scm",
       "takl.scm",
-      
-      
-              
-      
     )
     lazy val optimizations: Set[String] = fromFolder("test/optimizations")()
     lazy val gambit: Set[String] = fromFolder("test/R5RS/gambit")(
@@ -71,6 +67,54 @@ object SchemeBenchmarkPrograms:
     lazy val rosetta: Set[String] = fromFolder("test/R5RS/rosetta")()
     lazy val scp1: Set[String] = fromFolder("test/R5RS/scp1")(
       "circus.scm" // Vararg append not supported by concrete interpreter.
+    )
+    lazy val scp1Working: Set[String] = fromFolder("test/R5RS/scp1")(
+      "circus.scm",
+      "addition.scm",
+      "all-but-interval.scm",
+      "animal-classification.scm",
+      "append.scm",
+      "apple-tree.scm",
+      "car-counter.scm",
+      "cashdesk-counter.scm",
+      "coca-cola.scm",
+      "compress-measurements.scm",
+      "count-pairs.scm",
+      "count-pairs2.scm",
+      "count-tree.scm",
+      "dedouble.scm",
+      "deep-map-combine.scm",
+      "draw-umbrella.scm",
+      "family-budget.scm",
+      "fireworks.scm",
+      "flatten.scm",
+      "fringe.scm",
+      "grades.scm",
+      "insert.scm",
+      "josephus-problem.scm",
+      "lightbulb.scm",
+      "list-compare-nn.scm",
+      "merge.scm",
+      "multiply.scm",
+      "organigram.scm",
+      "parking-counter.scm",
+      "polynome.scm",
+      "print-abc.scm",
+      "ring-rotate.scm",
+      "ring-squares.scm",
+      "ring.scm",
+      "sales-period.scm",
+      "same-structure.scm",
+      "scoreboard.scm",
+      "sim-fast-multiply.scm",
+      "slide-in.scm",
+      "square-and-rectangle.scm",
+      "super-list-merge-n.scm",
+      "tree-with-branches.scm",
+      "twitter.scm",
+      "unfringe.scm",
+      "university.scm",
+      "weird.scm"
     )
     lazy val scp1_compressed: Set[String] = fromFolder("test/R5RS/scp1-compressed")()
     lazy val scp1_singleFile: Set[String] = Set("test/R5RS/scp1-compressed/all.scm")

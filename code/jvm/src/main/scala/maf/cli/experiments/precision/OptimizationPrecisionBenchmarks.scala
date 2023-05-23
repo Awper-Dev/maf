@@ -8,7 +8,7 @@ import maf.core.Address
 import maf.language.CScheme.CSchemeParser
 import maf.language.scheme.lattices.ModularSchemeLattice
 import maf.language.scheme.primitives.SchemePrelude
-import maf.language.scheme.{SchemeExp, SchemeMutableVarBoxer, SchemeRenamer}
+import maf.language.scheme.{SchemeExp, SchemeLet, SchemeMutableVarBoxer, SchemeRenamer, SchemeSet}
 import maf.lattice.ConstantPropagation
 import maf.lattice.ConstantPropagation.{B, C, I, R, S, Sym}
 import maf.modular.{AnalysisEntry, AnalysisResults}
@@ -29,9 +29,9 @@ object OptimizationPrecisionBenchmarks extends AnalysisComparison[
   ConstantPropagation.Sym
 ]:
 
-  def benchmarks = SchemeBenchmarkPrograms.gabriel
+  def benchmarks = SchemeBenchmarkPrograms.scp1Working
 
-  type Analysis2 = Analysis & SchemeModFLocal & SchemeModFLocalAnalysisResults
+  type Analysis2 = Analysis & SchemeModFLocal & SchemeModFLocalAnalysisResults & SchemeModFLocalCallSiteSensitivity
 
   // timeout configuration
   override def analysisTimeout() = Timeout.start(Duration(5, MINUTES)) //timeout for (non-base) analyses
@@ -42,6 +42,8 @@ object OptimizationPrecisionBenchmarks extends AnalysisComparison[
     val analysis = SchemeAnalyses.modflocalAnalysis(prg, 0)
     analysis.setGarbageCollection(false)
     analysis
+
+  def baseParams(): (Boolean, Int) = (false, 0)
 
   def getAnalysis1(): (SchemeExp => Analysis2, String) =
     ((exp: SchemeExp) => {
@@ -102,30 +104,35 @@ object OptimizationPrecisionBenchmarks extends AnalysisComparison[
     getAnalysis7()
   )
 
+  def otherAnalysesParams(): List[(Boolean, Int)] = List(
+    (false, 1),
+    (false, 2),
+    (false, 3),
+    (true, 0),
+    (true, 1),
+    (true, 2),
+    (true, 3)
+  )
+
 
   var optimizationResults: Table[(Int, Map[String, Int])] = Table.empty[(Int, Map[String, Int])]
 
   def optimizeBenchmark(benchmark: Benchmark) =
+    println("---------------------")
+    println(";;; working on " + benchmark + "\n")
     val txt = Reader.loadFile(benchmark)
-    val parsed = CSchemeParser.parse(txt)
-    val prelud = SchemePrelude.addPrelude(parsed, incl = Set("__toplevel_cons", "__toplevel_cdr", "__toplevel_set-cdr!"))
-    val transf = SchemeMutableVarBoxer.transform(prelud)
-    val program = CSchemeParser.undefine(transf)
-    val renamed: SchemeExp = SchemeRenamer.rename(program)
 
-    print(renamed)
-
-
-    var res: (Int, Map[String, Int]) = OptimizeProgram.optimizeProgramWithAnalysis(txt, baseAnalysis(renamed))
-    optimizationResults = optimizationResults.add(benchmark, "Base Analysis", res)
+    val res: (Int, Map[String, Int], Int) = OptimizeProgram.fullyOptimize(txt, baseParams()._1, baseParams()._2)
+    //optimizationResults = optimizationResults.add(benchmark, "Base Analysis", res)
+    println("base: k0 GC OFF" + res)
     OptimizeProgram.reset()
 
     // run the other analyses on the benchmark
-    otherAnalyses().foreach { case (analysis, name) =>
-      val res: (Int, Map[String, Int]) = OptimizeProgram.optimizeProgramWithAnalysis(txt, analysis(renamed))
+    otherAnalysesParams().foreach { case (gc, k) =>
+      val res: (Int, Map[String, Int], Int) = OptimizeProgram.fullyOptimize(txt, gc, k)
       OptimizeProgram.reset()
-
-      optimizationResults = optimizationResults.add(benchmark, name, res)
+      println("other: k: "+ k + " gc: " + gc + " res: " + res)
+      //optimizationResults = optimizationResults.add(benchmark, name, res)
     }
 
   override def parseProgram(txt: Benchmark): SchemeExp =
@@ -136,8 +143,8 @@ object OptimizationPrecisionBenchmarks extends AnalysisComparison[
     SchemeRenamer.rename(program)
 
   def main(args: Array[String]) =
-    benchmarks.foreach(runBenchmark)
-    println(results.prettyString(format = _.map(_.toString()).getOrElse("TIMEOUT")))
-    val writer = Writer.open("benchOutput/precision/optimization-benchmarks.csv")
-    Writer.write(writer, results.toCSVString(format = _.map(_.toString()).getOrElse("TIMEOUT"), rowName = "benchmark"))
-    Writer.close(writer)
+    benchmarks.foreach(optimizeBenchmark)
+    //println(results.prettyString(format = _.map(_.toString()).getOrElse("TIMEOUT")))
+    //val writer = Writer.open("benchOutput/precision/optimization-benchmarks-counts.csv")
+    //Writer.write(writer, results.toCSVString(format = _.map(_.toString()).getOrElse("TIMEOUT"), rowName = "benchmark"))
+    //Writer.close(writer)

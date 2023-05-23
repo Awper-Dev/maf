@@ -14,10 +14,13 @@ import maf.lattice.interfaces.IntLattice
 import maf.lattice.{ConstantPropagation, HMap, HMapKey}
 import maf.modular.DependencyTracking
 import maf.modular.scheme.modf.{SchemeModFComponent, SchemeModFNoSensitivity, SimpleSchemeModFAnalysis}
-import maf.modular.scheme.modflocal.{SchemeModFLocal, SchemeModFLocalAnalysisResults}
+import maf.modular.scheme.modflocal.{SchemeModFLocal, SchemeModFLocalAnalysisResults, SchemeModFLocalCallSiteSensitivity}
 import maf.modular.scheme.{ModularSchemeLatticeWrapper, SchemeConstantPropagationDomain, VarAddr}
 import maf.modular.worklist.FIFOWorklistAlgorithm
 import maf.util.{Default, Reader}
+import maf.util.benchmarks.{Table, Timeout}
+
+import scala.concurrent.duration.{Duration, MINUTES}
 
 // TODO slides:
 // 3 optimalisaties
@@ -235,6 +238,7 @@ object OptimizeProgram extends App:
         unUsedVariables = List()
         counter = 0
         expressionCounter = Map()
+        variableRemoveCount = 0
 
     def fillDependencyMap(current: SchemeExp): Unit = // TODO MOET LOPEN OVER HELE AST
         current match {
@@ -265,7 +269,7 @@ object OptimizeProgram extends App:
     def hasBodyUse(current: List[SchemeExp], identifier: Identifier): Boolean =
         current.exists((exp: SchemeExp) => hasBodyUse(exp, identifier))
     def hasBodyUse(current: SchemeExp, identifier: Identifier): Boolean =
-        println("currnet: " + current)
+        //println("currnet: " + current)
         current match {
             case SchemeVarLex(id, lex) =>
                 //println("VAR LEX")
@@ -328,10 +332,12 @@ object OptimizeProgram extends App:
                     //println("ic : " + !identifierContains(identifier, unUsedVariables))
                     //println("bu : " + hasBodyUse(body, identifier))
                     //println("se : " + sideEffects.contains(current))
-                    !identifierContains(identifier, unUsedVariables) || hasBodyUse(body, identifier) || sideEffects.exists((exp: SchemeExp) => exp.idn == current.idn))
+                    val boolRes = !identifierContains(identifier, unUsedVariables) || hasBodyUse(body, identifier) || sideEffects.exists((exp: SchemeExp) => exp.idn == current.idn)
+                    if !boolRes then variableRemoveCount +=1
+                    boolRes)
                 val usedIdentifiers = modifiedBindings.map((identifier: Identifier, _) => identifier)
                 val unUsedIdentifiers = bindings.filter((identifier: Identifier, exp: SchemeExp) => !usedIdentifiers.contains(identifier)).map((identifier: Identifier, _) => identifier)
-                println("REMOVING SETS OF " + unUsedIdentifiers)
+                //println("REMOVING SETS OF " + unUsedIdentifiers)
                 modifiedBody = modifiedBody.map((exp: SchemeExp) => removeSets(unUsedIdentifiers, exp, sideEffects))
                 SchemeLet(modifiedBindings, modifiedBody, idn)
                 // removeSets(unUsedBindings, SchemeLet(modifiedBindings, modifiedBody, idn))
@@ -362,31 +368,35 @@ object OptimizeProgram extends App:
             case other: Any => other
         }
 
+    var variableRemoveCount = 0
     var counter = 0
     var expressionCounter: Map[String, Int] = Map.empty
 
     //def optimize(program: SchemeExp, store: Map[Address, HMap], identities: Map[Identity, Address], lattice: ModularSchemeLattice[Address, ConstantPropagation.S, ConstantPropagation.B, ConstantPropagation.I, ConstantPropagation.R, ConstantPropagation.C, ConstantPropagation.Sym]): SchemeExp =
-    def optimize(program: SchemeExp, mapping: Map[SchemeExp, Option[SchemeExp]]): SchemeExp =
-        def optimizeExpressions(expressions: List[SchemeExp]) = expressions.map((expr: SchemeExp) => optimize(expr, mapping))
-        def optimizeExpression(expression: SchemeExp) = optimize(expression, mapping)
+    def optimize(program: SchemeExp, mapping: Map[SchemeExp, Option[SchemeExp]], factor: Int): SchemeExp =
+        def optimizeExpressions(expressions: List[SchemeExp], factor2: Int) = expressions.map((expr: SchemeExp) => optimize(expr, mapping, factor2))
+        def optimizeExpression(expression: SchemeExp, factor2: Int) = optimize(expression, mapping, factor2)
         def optimizeSubExpressions(): SchemeExp =
-            println("optimizing sub expressions")
+            //println("optimizing sub expressions")
+            //val newfac = Math.max(1, (Math.log(factor) / Math.log(2)).toInt)
+            val newfac = (factor / 3).toInt
+            //println("newfac: " + newfac)
             program match {
-                case SchemeLambda(name, args, body, ann, idn) => SchemeLambda(name, args, optimizeExpressions(body), ann, idn)
-                case SchemeVarArgLambda(name, args, vararg, body, ann, idn) => SchemeVarArgLambda(name, args, vararg, optimizeExpressions(body), ann, idn)
-                case SchemeFuncall(f, args, idn) => SchemeFuncall(optimizeExpression(f), optimizeExpressions(args), idn)
-                case SchemeIf(cond, cons, alt, idn) => SchemeIf(optimizeExpression(cond), optimizeExpression(cons), optimizeExpression(alt), idn)
-                case SchemeLet(bindings, body, idn) => SchemeLet(bindings.map((identifier, expr) => (identifier, optimizeExpression(expr))), optimizeExpressions(body), idn)
-                case SchemeLetStar(bindings, body, idn) => SchemeLetStar(bindings.map((identifier, expr) => (identifier, optimizeExpression(expr))), optimizeExpressions(body), idn)
-                case SchemeLetrec(bindings, body, idn) => SchemeLetrec(bindings.map((identifier, expr) => (identifier, optimizeExpression(expr))), optimizeExpressions(body), idn)
-                case SchemeSet(variable, value, idn) => SchemeSet(variable, optimizeExpression(value), idn)
-                case SchemeBegin(exps, idn) => SchemeBegin(optimizeExpressions(exps), idn)
-                case SchemeDefineVariable(name, value, idn) => SchemeDefineVariable(name, optimizeExpression(value), idn)
+                case SchemeLambda(name, args, body, ann, idn) => SchemeLambda(name, args, optimizeExpressions(body, newfac), ann, idn)
+                case SchemeVarArgLambda(name, args, vararg, body, ann, idn) => SchemeVarArgLambda(name, args, vararg, optimizeExpressions(body, newfac), ann, idn)
+                case SchemeFuncall(f, args, idn) => SchemeFuncall(optimizeExpression(f, newfac), optimizeExpressions(args, newfac), idn)
+                case SchemeIf(cond, cons, alt, idn) => SchemeIf(optimizeExpression(cond, newfac), optimizeExpression(cons, newfac), optimizeExpression(alt, newfac), idn)
+                case SchemeLet(bindings, body, idn) => SchemeLet(bindings.map((identifier, expr) => (identifier, optimizeExpression(expr, newfac))), optimizeExpressions(body, newfac), idn)
+                case SchemeLetStar(bindings, body, idn) => SchemeLetStar(bindings.map((identifier, expr) => (identifier, optimizeExpression(expr, newfac))), optimizeExpressions(body, newfac), idn)
+                case SchemeLetrec(bindings, body, idn) => SchemeLetrec(bindings.map((identifier, expr) => (identifier, optimizeExpression(expr, newfac))), optimizeExpressions(body, newfac), idn)
+                case SchemeSet(variable, value, idn) => SchemeSet(variable, optimizeExpression(value, newfac), idn)
+                case SchemeBegin(exps, idn) => SchemeBegin(optimizeExpressions(exps, newfac), idn)
+                case SchemeDefineVariable(name, value, idn) => SchemeDefineVariable(name, optimizeExpression(value, newfac), idn)
                 case SchemeVar(id) => SchemeVar(id)
                 case SchemeValue(value, idn) => SchemeValue(value, idn)
                 case other: Any => other
             }
-        println("Working on: " + program.getClass)
+       // println("Working on: " + program.getClass)
         // See if current expression can be folded
 
         mapping.get(program) match {
@@ -398,7 +408,7 @@ object OptimizeProgram extends App:
                             case _ => expressionCounter = expressionCounter.updated(program.getOptimizationPlaceName, 1)
                         }
                         //expressionCounter = expressionCounter + program.getOptimizationPlaceName
-                        counter += 1
+                        counter += factor
                         expr
                     case _ => optimizeSubExpressions()
                 }
@@ -407,32 +417,63 @@ object OptimizeProgram extends App:
 
     // + - / * met lexicale detectie
 
+    type optimizationAnalysis = SchemeModFLocal & SchemeConstantPropagationDomain & SchemeModFLocalCallSiteSensitivity & FIFOWorklistAlgorithm[SchemeExp] & SchemeModFLocalAnalysisResults
+
     def renameProgram(text: String): String =
         val parsed: SchemeExp = CSchemeParser.parseProgram(text)
         val renamed: SchemeExp = SchemeRenamer.rename(parsed)
 
         renamed.prettyString()
 
-    def optimizeUnusedProgram(text: String): String =
-        val origParsed = SchemeParser.parseProgram(text)
-        val parsed = CSchemeParser.parse(text)
-        val prelud = SchemePrelude.addPrelude(parsed, incl = Set("__toplevel_cons", "__toplevel_cdr", "__toplevel_set-cdr!"))
-        val transf = SchemeMutableVarBoxer.transform(prelud)
-        val program = CSchemeParser.undefine(transf)
-        val renamed: SchemeExp = SchemeRenamer.rename(program)
-        val origRenamed: SchemeExp = SchemeRenamer.rename(origParsed)
+    def optimizeUnusedProgram(text: String, gc: Boolean, k: Int, processed: Boolean): String =
+        //val origParsed = SchemeParser.parseProgram(text)
+        var renamed = CSchemeParser.parseProgram(text)
 
-        val garbageCollection = true
-        val analysis = SchemeAnalyses.modflocalAnalysis(renamed, 1)
+        if !processed then
+            val parsed = CSchemeParser.parse(text)
+            val prelud = SchemePrelude.addPrelude(parsed, incl = Set("__toplevel_cons", "__toplevel_cdr", "__toplevel_set-cdr!"))
+            val transf = SchemeMutableVarBoxer.transform(prelud)
+            val program = CSchemeParser.undefine(transf)
+            renamed = SchemeRenamer.rename(program)
+        //val origRenamed: SchemeExp = SchemeRenamer.rename(origParsed)
+
+        val garbageCollection = gc
+        val analysis = SchemeAnalyses.modflocalAnalysis(renamed, k)
+        analysis.setGarbageCollection(garbageCollection)
+        analysis.analyzeWithTimeout(Timeout.start(Duration(15, MINUTES)))
+
+        fillDependencyMap(renamed)
+        //println("map:")
+        //println(dependencyMap)
+        //println("side effects: ")
+        //println(analysis.sideEffectedExpressions)
+        val removed = removeUnusedVariables(renamed, analysis.sideEffectedExpressions)//analysis.sideEffectedExpressions)
+
+        removed.prettyString()
+
+    def optimizeUnusedProgramWithSpecific(text: String, gc: Boolean, k: Int, processed: Boolean): String =
+        //val origParsed = SchemeParser.parseProgram(text)
+        var renamed = CSchemeParser.parseProgram(text)
+
+        if !processed then
+            val parsed = CSchemeParser.parse(text)
+            val prelud = SchemePrelude.addPrelude(parsed, incl = Set("__toplevel_cons", "__toplevel_cdr", "__toplevel_set-cdr!"))
+            val transf = SchemeMutableVarBoxer.transform(prelud)
+            val program = CSchemeParser.undefine(transf)
+            renamed = SchemeRenamer.rename(program)
+        //val origRenamed: SchemeExp = SchemeRenamer.rename(origParsed)
+
+        val garbageCollection = gc
+        val analysis = SchemeAnalyses.modflocalAnalysis(renamed, k)
         analysis.setGarbageCollection(garbageCollection)
         analysis.analyze()
 
         fillDependencyMap(renamed)
-        println("map:")
-        println(dependencyMap)
-        println("side effects: ")
-        println(analysis.sideEffectedExpressions)
-        val removed = removeUnusedVariables(renamed, analysis.sideEffectedExpressions)//analysis.sideEffectedExpressions)
+        //println("map:")
+        //println(dependencyMap)
+        //println("side effects: ")
+        //println(analysis.sideEffectedExpressions)
+        val removed = removeUnusedVariables(renamed, analysis.sideEffectedExpressions) //analysis.sideEffectedExpressions)
 
         removed.prettyString()
 
@@ -446,37 +487,50 @@ object OptimizeProgram extends App:
         
         analysis.analyze()
 
-        val result: SchemeExp = optimize(renamed, analysis.constantValueMap)
+        val result: SchemeExp = optimize(renamed, analysis.constantValueMap, 1000)
         (counter, expressionCounter)
-        
-    def optimizeProgram(text: String): String =
-        println("parsing...")
 
-        val parsed = CSchemeParser.parse(text)
-        val prelud = SchemePrelude.addPrelude(parsed, incl = Set("__toplevel_cons", "__toplevel_cdr", "__toplevel_set-cdr!"))
-        val transf = SchemeMutableVarBoxer.transform(prelud)
-        val program = CSchemeParser.undefine(transf)
 
-        val renamed: SchemeExp = SchemeRenamer.rename(program)
-        //val analysis = SchemeAnalyses.contextInsensitiveAnalysis(renamed)
+    def fullyOptimize(text: String, gc: Boolean, k: Int): (Int, Map[String, Int], Int) =
+        val newText: String = optimizeUnusedProgram(text, gc, k, false)
+        val folded = optimizeProgram(newText, gc, k, true)
+        //optimizeUnusedProgram(folded, gc, k, true)
+        folded
+        (counter, expressionCounter, variableRemoveCount)
 
-        val garbageCollection = true
-        val k = 1
+
+    def optimizeProgram(text: String, gc: Boolean, k: Int, processed: Boolean): String =
+       // println("parsing...")
+
+        var renamed = CSchemeParser.parseProgram(text)
+
+        if !processed then
+            val parsed = CSchemeParser.parse(text)
+            val prelud = SchemePrelude.addPrelude(parsed, incl = Set("__toplevel_cons", "__toplevel_cdr", "__toplevel_set-cdr!"))
+            val transf = SchemeMutableVarBoxer.transform(prelud)
+            val program = CSchemeParser.undefine(transf)
+
+            renamed = SchemeRenamer.rename(program)
+            //val analysis = SchemeAnalyses.contextInsensitiveAnalysis(renamed)
+
+        val garbageCollection = gc
         val analysis = SchemeAnalyses.modflocalAnalysis(renamed, k)
         analysis.setGarbageCollection(garbageCollection)
 
         //val lat: ModularSchemeLattice[Address, ConstantPropagation.S, ConstantPropagation.B, ConstantPropagation.I, ConstantPropagation.R, ConstantPropagation.C, ConstantPropagation.Sym] = analysis.modularLattice
-        println(renamed.prettyString())
-        println("analyzing...")
-        analysis.analyze()
-        println("optimizing...")
-        println(analysis.constantValueMap)
+        //println(renamed.prettyString())
+        //println("analyzing...")
+        analysis.analyzeWithTimeout(Timeout.start(Duration(15, MINUTES)))
+        //println("optimizing...")
+        //println(analysis.constantValueMap)
 
 
-        val result: SchemeExp = optimize(renamed, analysis.constantValueMap)
+        val result: SchemeExp = optimize(renamed, analysis.constantValueMap, 1000)
         "\n" + "Parameters: " + "k: " + k + " garbage collection: " + garbageCollection + "\n" + "Amount of optimizations: " + counter + "\n" + "Expression counts: " + expressionCounter + "\n" + result.prettyString()
+        result.prettyString()
 
-    println(optimizeProgram(Reader.loadFile("test/optimizations/constant-folding.scm")))
+    //println(optimizeProgram(Reader.loadFile("test/optimizations/constant-folding.scm")))
+    //println(fullyOptimize(Reader.loadFile("test/optimizations/constant-folding.scm"), true, 1))
 
     /*
 

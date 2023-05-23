@@ -34,4 +34,5 @@ trait SchemeModFLocalCallSiteSensitivity(k: Int) extends SchemeModFLocalSensitiv
     def initialCtx = Nil
     def newContext(fex: Exp, lam: Lam, ags: List[Val], ctx: Ctx) =
         (fex.idn.pos :: ctx).take(k)
+    def getK() = k
 }

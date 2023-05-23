@@ -371,6 +371,7 @@ trait SchemeModFLocalAnalysisResults extends SchemeModFLocal with AnalysisResult
                                             // println("New encounter")
                                             constantValueMap = constantValueMap.updated(exp, Option(possibleConstant))
                                             SchemeValue(maf.language.sexp.Value.Symbol(symbl), program.idn)
+                                    case _ => {}
                                 }
                             case lat.Str(s) =>
                                 s match {
