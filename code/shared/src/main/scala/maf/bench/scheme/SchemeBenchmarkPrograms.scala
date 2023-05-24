@@ -76,7 +76,6 @@ object SchemeBenchmarkPrograms:
       "append.scm",
       "apple-tree.scm",
       "car-counter.scm",
-      "cashdesk-counter.scm",
       "coca-cola.scm",
       "compress-measurements.scm",
       "count-pairs.scm",
