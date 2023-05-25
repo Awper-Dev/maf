@@ -373,25 +373,25 @@ object OptimizeProgram extends App:
     var expressionCounter: Map[String, Int] = Map.empty
 
     //def optimize(program: SchemeExp, store: Map[Address, HMap], identities: Map[Identity, Address], lattice: ModularSchemeLattice[Address, ConstantPropagation.S, ConstantPropagation.B, ConstantPropagation.I, ConstantPropagation.R, ConstantPropagation.C, ConstantPropagation.Sym]): SchemeExp =
-    def optimize(program: SchemeExp, mapping: Map[SchemeExp, Option[SchemeExp]], factor: Int): SchemeExp =
-        def optimizeExpressions(expressions: List[SchemeExp], factor2: Int) = expressions.map((expr: SchemeExp) => optimize(expr, mapping, factor2))
-        def optimizeExpression(expression: SchemeExp, factor2: Int) = optimize(expression, mapping, factor2)
+    def optimize(program: SchemeExp, mapping: Map[SchemeExp, Option[SchemeExp]]): SchemeExp =
+        def optimizeExpressions(expressions: List[SchemeExp]) = expressions.map((expr: SchemeExp) => optimize(expr, mapping))
+        def optimizeExpression(expression: SchemeExp) = optimize(expression, mapping)
         def optimizeSubExpressions(): SchemeExp =
             //println("optimizing sub expressions")
             //val newfac = Math.max(1, (Math.log(factor) / Math.log(2)).toInt)
-            val newfac = (factor / 3).toInt
+            //val newfac = (factor / 3).toInt
             //println("newfac: " + newfac)
             program match {
-                case SchemeLambda(name, args, body, ann, idn) => SchemeLambda(name, args, optimizeExpressions(body, newfac), ann, idn)
-                case SchemeVarArgLambda(name, args, vararg, body, ann, idn) => SchemeVarArgLambda(name, args, vararg, optimizeExpressions(body, newfac), ann, idn)
-                case SchemeFuncall(f, args, idn) => SchemeFuncall(optimizeExpression(f, newfac), optimizeExpressions(args, newfac), idn)
-                case SchemeIf(cond, cons, alt, idn) => SchemeIf(optimizeExpression(cond, newfac), optimizeExpression(cons, newfac), optimizeExpression(alt, newfac), idn)
-                case SchemeLet(bindings, body, idn) => SchemeLet(bindings.map((identifier, expr) => (identifier, optimizeExpression(expr, newfac))), optimizeExpressions(body, newfac), idn)
-                case SchemeLetStar(bindings, body, idn) => SchemeLetStar(bindings.map((identifier, expr) => (identifier, optimizeExpression(expr, newfac))), optimizeExpressions(body, newfac), idn)
-                case SchemeLetrec(bindings, body, idn) => SchemeLetrec(bindings.map((identifier, expr) => (identifier, optimizeExpression(expr, newfac))), optimizeExpressions(body, newfac), idn)
-                case SchemeSet(variable, value, idn) => SchemeSet(variable, optimizeExpression(value, newfac), idn)
-                case SchemeBegin(exps, idn) => SchemeBegin(optimizeExpressions(exps, newfac), idn)
-                case SchemeDefineVariable(name, value, idn) => SchemeDefineVariable(name, optimizeExpression(value, newfac), idn)
+                case SchemeLambda(name, args, body, ann, idn) => SchemeLambda(name, args, optimizeExpressions(body), ann, idn)
+                case SchemeVarArgLambda(name, args, vararg, body, ann, idn) => SchemeVarArgLambda(name, args, vararg, optimizeExpressions(body), ann, idn)
+                case SchemeFuncall(f, args, idn) => SchemeFuncall(optimizeExpression(f), optimizeExpressions(args), idn)
+                case SchemeIf(cond, cons, alt, idn) => SchemeIf(optimizeExpression(cond), optimizeExpression(cons), optimizeExpression(alt), idn)
+                case SchemeLet(bindings, body, idn) => SchemeLet(bindings.map((identifier, expr) => (identifier, optimizeExpression(expr))), optimizeExpressions(body), idn)
+                case SchemeLetStar(bindings, body, idn) => SchemeLetStar(bindings.map((identifier, expr) => (identifier, optimizeExpression(expr))), optimizeExpressions(body), idn)
+                case SchemeLetrec(bindings, body, idn) => SchemeLetrec(bindings.map((identifier, expr) => (identifier, optimizeExpression(expr))), optimizeExpressions(body), idn)
+                case SchemeSet(variable, value, idn) => SchemeSet(variable, optimizeExpression(value), idn)
+                case SchemeBegin(exps, idn) => SchemeBegin(optimizeExpressions(exps), idn)
+                case SchemeDefineVariable(name, value, idn) => SchemeDefineVariable(name, optimizeExpression(value), idn)
                 case SchemeVar(id) => SchemeVar(id)
                 case SchemeValue(value, idn) => SchemeValue(value, idn)
                 case other: Any => other
@@ -403,12 +403,13 @@ object OptimizeProgram extends App:
             case Some(replacement: Option[SchemeExp]) =>
                 replacement match {
                     case Some(expr: SchemeExp) =>
-                        expressionCounter.get(program.getOptimizationPlaceName) match {
-                            case Some(counter: Int) => expressionCounter = expressionCounter.updated(program.getOptimizationPlaceName, counter + 1)
-                            case _ => expressionCounter = expressionCounter.updated(program.getOptimizationPlaceName, 1)
-                        }
-                        //expressionCounter = expressionCounter + program.getOptimizationPlaceName
-                        counter += factor
+                        if expr != program then
+                            expressionCounter.get(program.getOptimizationPlaceName) match {
+                                case Some(counter: Int) => expressionCounter = expressionCounter.updated(program.getOptimizationPlaceName, counter + 1)
+                                case _ => expressionCounter = expressionCounter.updated(program.getOptimizationPlaceName, 1)
+                            }
+                            //expressionCounter = expressionCounter + program.getOptimizationPlaceName
+                            counter += program.size + 1
                         expr
                     case _ => optimizeSubExpressions()
                 }
@@ -487,15 +488,16 @@ object OptimizeProgram extends App:
         
         analysis.analyze()
 
-        val result: SchemeExp = optimize(renamed, analysis.constantValueMap, 1000)
+        val result: SchemeExp = optimize(renamed, analysis.constantValueMap)
         (counter, expressionCounter)
 
 
     def fullyOptimize(text: String, gc: Boolean, k: Int): (Int, Map[String, Int], Int) =
-        val newText: String = optimizeUnusedProgram(text, gc, k, false)
-        val folded = optimizeProgram(newText, gc, k, true)
+        val folded = optimizeProgram(text, gc, k, false)
+        val latest: String = optimizeUnusedProgram(folded, gc, k, true)
+        // TODO omdraaien
         //optimizeUnusedProgram(folded, gc, k, true)
-        folded
+        //println(folded)
         (counter, expressionCounter, variableRemoveCount)
 
 
@@ -525,12 +527,13 @@ object OptimizeProgram extends App:
         //println(analysis.constantValueMap)
 
 
-        val result: SchemeExp = optimize(renamed, analysis.constantValueMap, 1000)
+        val result: SchemeExp = optimize(renamed, analysis.constantValueMap)
         "\n" + "Parameters: " + "k: " + k + " garbage collection: " + garbageCollection + "\n" + "Amount of optimizations: " + counter + "\n" + "Expression counts: " + expressionCounter + "\n" + result.prettyString()
         result.prettyString()
 
-    //println(optimizeProgram(Reader.loadFile("test/optimizations/constant-folding.scm")))
+    println(optimizeProgram(Reader.loadFile("test/optimizations/constant-folding.scm"), true, 1, false))
     //println(fullyOptimize(Reader.loadFile("test/optimizations/constant-folding.scm"), true, 1))
+    //fullyOptimize(Reader.loadFile("test/optimizations/constant-folding.scm"), false, 0)
 
     /*
 

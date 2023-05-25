@@ -123,10 +123,10 @@ object OptimizationPrecisionBenchmarks extends AnalysisComparisonAlt[
     println(";;; working on " + benchmark + "\n")
     val txt = Reader.loadFile(benchmark)
 
-    val res: (Int, Map[String, Int], Int) = OptimizeProgram.fullyOptimize(txt, baseParams()._1, baseParams()._2)
+    //val res: (Int, Map[String, Int], Int) = OptimizeProgram.fullyOptimize(txt, baseParams()._1, baseParams()._2)
     //optimizationResults = optimizationResults.add(benchmark, "Base Analysis", res)
-    println("base: k0 GC OFF" + res)
-    OptimizeProgram.reset()
+    //println("base: k0 GC OFF" + res)
+    //OptimizeProgram.reset()
 
     // run the other analyses on the benchmark
     otherAnalysesParams().foreach { case (gc, k) =>
@@ -144,14 +144,14 @@ object OptimizationPrecisionBenchmarks extends AnalysisComparisonAlt[
     SchemeRenamer.rename(program)
 
   def main(args: Array[String]) =
-    //benchmarks.foreach(optimizeBenchmark)
+    benchmarks.foreach(optimizeBenchmark)
 
     //println(results.prettyString(format = _.map(_.toString()).getOrElse("TIMEOUT")))
     //val writer = Writer.open("benchOutput/precision/optimization-benchmarks-counts.csv")
     //Writer.write(writer, results.toCSVString(format = _.map(_.toString()).getOrElse("TIMEOUT"), rowName = "benchmark"))
     //Writer.close(writer)
 
-    runBenchmarks(benchmarks)
+    // GOOD: runBenchmarks(benchmarks)
 
   def runBenchmarks(benchmarks: Set[Benchmark]) =
     benchmarks.foreach(runBenchmark)
