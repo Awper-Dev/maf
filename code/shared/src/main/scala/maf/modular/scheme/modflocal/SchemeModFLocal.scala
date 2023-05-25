@@ -242,22 +242,28 @@ trait SchemeModFLocalAnalysisResults extends SchemeModFLocal with AnalysisResult
                 if elements.size == 1 && addrs.isEmpty then
                     val lat: ModularSchemeLattice[Address, ConstantPropagation.S, ConstantPropagation.B, ConstantPropagation.I, ConstantPropagation.R, ConstantPropagation.C, ConstantPropagation.Sym] = modularLattice
                     val elem: lat.Value = elements.last
+                    //println(elem)
                         elem match {
                         // int bool symbol reals character emptylist
                             case lat.Nil =>
+                                //println("matched")
                                 val possibleConstant = SchemeValue(Value.Nil, exp.idn)
                                 if constantValueMap.contains(exp) then
                                     val currentOption: Option[SchemeExp] = constantValueMap.get(exp).get
                                     currentOption match {
                                         case Some(other) =>
                                             if other != possibleConstant then
-                                                println("adding")
+                                                //println("adding")
                                                 constantValueMap = constantValueMap.updated(exp, None)
-                                            else println("else")
+                                            //else println("else")
                                         case None => {
                                                     //  println("Old encounter already bad")
                                         } // Do nothing ! Not a constant!
                                     }
+                                else
+                                    // println("New encounter")
+                                    constantValueMap = constantValueMap.updated(exp, Option(possibleConstant))
+                                    SchemeValue(maf.language.sexp.Value.Nil, program.idn)
                             case lat.Char(c) =>
                                 c match { // TODO andere case hier
                                     case Constant(char: Char) =>

@@ -2,6 +2,7 @@ package maf.cli.experiments.precision
 
 import maf.bench.scheme.SchemeBenchmarkPrograms
 import maf.cli.experiments.SchemeAnalyses
+import maf.cli.experiments.precision.AnalysisComparisonAlt1.Benchmark
 import maf.cli.experiments.precision.DailyPrecisionBenchmarks.Analysis
 import maf.cli.runnables.OptimizeProgram
 import maf.core.Address
@@ -20,7 +21,7 @@ import maf.util.benchmarks.{Table, Timeout}
 
 import scala.concurrent.duration.{Duration, MINUTES, SECONDS}
 
-object OptimizationPrecisionBenchmarks extends AnalysisComparison[
+object OptimizationPrecisionBenchmarks extends AnalysisComparisonAlt[
   ConstantPropagation.I,
   ConstantPropagation.R,
   ConstantPropagation.B,
@@ -34,9 +35,9 @@ object OptimizationPrecisionBenchmarks extends AnalysisComparison[
   type Analysis2 = Analysis & SchemeModFLocal & SchemeModFLocalAnalysisResults & SchemeModFLocalCallSiteSensitivity
 
   // timeout configuration
-  override def analysisTimeout() = Timeout.start(Duration(5, MINUTES)) //timeout for (non-base) analyses
+  override def timeout() = Timeout.start(Duration(15, MINUTES)) //timeout for (non-base) analyses
 
-  override def concreteTimeout() = Timeout.start(Duration(20, SECONDS))
+  //override def concreteTimeout() = Timeout.start(Duration(20, SECONDS))
 
   def baseAnalysis(prg: SchemeExp): Analysis2 =
     val analysis = SchemeAnalyses.modflocalAnalysis(prg, 0)
@@ -94,7 +95,7 @@ object OptimizationPrecisionBenchmarks extends AnalysisComparison[
       analysis
     }, "K3-GC")
 
-  def otherAnalyses(): List[(SchemeExp => Analysis2, String)] = List(
+  override def analyses: List[(SchemeExp => Analysis2, String)] = List(
     getAnalysis1(),
     getAnalysis2(),
     getAnalysis3(),
@@ -143,8 +144,19 @@ object OptimizationPrecisionBenchmarks extends AnalysisComparison[
     SchemeRenamer.rename(program)
 
   def main(args: Array[String]) =
-    benchmarks.foreach(optimizeBenchmark)
+    //benchmarks.foreach(optimizeBenchmark)
+
     //println(results.prettyString(format = _.map(_.toString()).getOrElse("TIMEOUT")))
     //val writer = Writer.open("benchOutput/precision/optimization-benchmarks-counts.csv")
     //Writer.write(writer, results.toCSVString(format = _.map(_.toString()).getOrElse("TIMEOUT"), rowName = "benchmark"))
     //Writer.close(writer)
+
+    runBenchmarks(benchmarks)
+
+  def runBenchmarks(benchmarks: Set[Benchmark]) =
+    benchmarks.foreach(runBenchmark)
+    val cols = analyses.map(_._2)
+    println(results.prettyString(columns = cols))
+    val writer = Writer.open("benchOutput/precision/precision-benchmarks.csv")
+    Writer.write(writer, results.toCSVString(rowName = "benchmark", columns = cols))
+    Writer.close(writer)
