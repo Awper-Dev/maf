@@ -46,6 +46,14 @@ object OptimizationPrecisionBenchmarks extends AnalysisComparisonAlt[
 
   def baseParams(): (Boolean, Int) = (false, 0)
 
+  def getAnalysis0(): (SchemeExp => Analysis2, String) =
+    ((exp: SchemeExp) => {
+      val analysis = SchemeAnalyses.modflocalAnalysis(exp, 0)
+      analysis.setGarbageCollection(false)
+      analysis
+    }, "K0-NO_GC")
+
+
   def getAnalysis1(): (SchemeExp => Analysis2, String) =
     ((exp: SchemeExp) => {
       val analysis = SchemeAnalyses.modflocalAnalysis(exp, 1)
@@ -96,6 +104,7 @@ object OptimizationPrecisionBenchmarks extends AnalysisComparisonAlt[
     }, "K3-GC")
 
   override def analyses: List[(SchemeExp => Analysis2, String)] = List(
+    getAnalysis0(),
     getAnalysis1(),
     getAnalysis2(),
     getAnalysis3(),
@@ -106,6 +115,7 @@ object OptimizationPrecisionBenchmarks extends AnalysisComparisonAlt[
   )
 
   def otherAnalysesParams(): List[(Boolean, Int)] = List(
+    (false, 0)
     (false, 1),
     (false, 2),
     (false, 3),

@@ -534,9 +534,10 @@ object OptimizeProgram extends App:
         result.prettyString()
 
     //println(optimizeProgram(Reader.loadFile("test/optimizations/constant-folding.scm"), true, 1, false))
-    println(optimizeProgram(Reader.loadFile("test/R5RS/scp1/haha.scm"), false, 1, false))
+    //println(optimizeProgram(Reader.loadFile("test/R5RS/scp1/haha.scm"), false, 1, false))
     //println(fullyOptimize(Reader.loadFile("test/optimizations/constant-folding.scm"), true, 1))
     //fullyOptimize(Reader.loadFile("test/optimizations/constant-folding.scm"), false, 0)
+
 
     /*
 
