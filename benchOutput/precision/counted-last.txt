@@ -1,0 +1,34 @@
+---------------------
+;;; working on test/R5RS/scp1/grades.scm
+
+base: k0 GC OFF(1000,Map(letRec -> 1),0)
+other: k: 1 gc: false res: (1000,Map(letRec -> 1),0)
+adding
+adding
+adding
+adding
+adding
+adding
+adding
+adding
+other: k: 2 gc: false res: (41,Map(var -> 4, value -> 36, ifStatement -> 2, functionCall -> 3),0)
+adding
+adding
+other: k: 3 gc: false res: (41,Map(var -> 4, value -> 36, ifStatement -> 2, functionCall -> 4),0)
+other: k: 0 gc: true res: (40,Map(functionCall -> 5, var -> 4, value -> 36, ifStatement -> 2),0)
+other: k: 1 gc: true res: (40,Map(functionCall -> 5, var -> 4, value -> 36, ifStatement -> 2),0)
+other: k: 2 gc: true res: (1000,Map(letRec -> 1),0)
+other: k: 3 gc: true res: (1000,Map(letRec -> 1),0)
+---------------------
+;;; working on test/R5RS/scp1/cashdesk-counter.scm
+
+base: k0 GC OFF(322,Map(value -> 54, functionCall -> 6, var -> 2),0)
+other: k: 1 gc: false res: (1000,Map(letRec -> 1),0)
+other: k: 2 gc: false res: (1000,Map(letRec -> 1),0)
+other: k: 3 gc: false res: (1000,Map(letRec -> 1),0)
+other: k: 0 gc: true res: (322,Map(value -> 53, functionCall -> 5, var -> 1),0)
+other: k: 1 gc: true res: (1000,Map(letRec -> 1),0)
+other: k: 2 gc: true res: (1000,Map(letRec -> 1),0)
+other: k: 3 gc: true res: (1000,Map(letRec -> 1),0)
+
+Process finished with exit code 0
