@@ -263,7 +263,7 @@ trait SchemeModFLocalAnalysisResults extends SchemeModFLocal with AnalysisResult
                                 else
                                     // println("New encounter")
                                     constantValueMap = constantValueMap.updated(exp, Option(possibleConstant))
-                                    SchemeValue(maf.language.sexp.Value.Nil, program.idn)
+                                    SchemeValue(maf.language.sexp.Value.Nil, exp.idn)
                             case lat.Char(c) =>
                                 c match { // TODO andere case hier
                                     case Constant(char: Char) =>
@@ -284,8 +284,8 @@ trait SchemeModFLocalAnalysisResults extends SchemeModFLocal with AnalysisResult
                                         else
                                             // println("New encounter")
                                             constantValueMap = constantValueMap.updated(exp, Option(possibleConstant))
-                                            SchemeValue(maf.language.sexp.Value.Character(char), program.idn)
-                                    case _ => {}
+                                            SchemeValue(maf.language.sexp.Value.Character(char), exp.idn)
+                                    case _ => constantValueMap = constantValueMap.updated(exp, None)
                                 }
                             case lat.Real(r) =>
                                 r match { // TODO andere case hier
@@ -307,8 +307,8 @@ trait SchemeModFLocalAnalysisResults extends SchemeModFLocal with AnalysisResult
                                         else
                                             // println("New encounter")
                                             constantValueMap = constantValueMap.updated(exp, Option(possibleConstant))
-                                            SchemeValue(maf.language.sexp.Value.Real(double), program.idn)
-                                    case _ => {}
+                                            SchemeValue(maf.language.sexp.Value.Real(double), exp.idn)
+                                    case _ => constantValueMap = constantValueMap.updated(exp, None)
                                 }
                             case lat.Bool(b) =>
                                 b match { // TODO andere case hier
@@ -330,8 +330,8 @@ trait SchemeModFLocalAnalysisResults extends SchemeModFLocal with AnalysisResult
                                         else
                                             // println("New encounter")
                                             constantValueMap = constantValueMap.updated(exp, Option(possibleConstant))
-                                            SchemeValue(maf.language.sexp.Value.Boolean(boolean), program.idn)
-                                    case _ => {}
+                                            SchemeValue(maf.language.sexp.Value.Boolean(boolean), exp.idn)
+                                    case _ => constantValueMap = constantValueMap.updated(exp, None) // TODO none als niet const
                                 }
                             case lat.Int(i) =>
                                 i match { // TODO andere case hier
@@ -353,8 +353,8 @@ trait SchemeModFLocalAnalysisResults extends SchemeModFLocal with AnalysisResult
                                         else
                                            // println("New encounter")
                                             constantValueMap = constantValueMap.updated(exp, Option(possibleConstant))
-                                            SchemeValue(maf.language.sexp.Value.Integer(bigInt), program.idn)
-                                    case _ => {}
+                                            SchemeValue(maf.language.sexp.Value.Integer(bigInt), exp.idn)
+                                    case _ => constantValueMap = constantValueMap.updated(exp, None)
                                 }
                             case lat.Symbol(ss) =>
                                 ss match {
@@ -376,13 +376,13 @@ trait SchemeModFLocalAnalysisResults extends SchemeModFLocal with AnalysisResult
                                         else
                                             // println("New encounter")
                                             constantValueMap = constantValueMap.updated(exp, Option(possibleConstant))
-                                            SchemeValue(maf.language.sexp.Value.Symbol(symbl), program.idn)
-                                    case _ => {}
+                                            SchemeValue(maf.language.sexp.Value.Symbol(symbl), exp.idn)
+                                    case _ => constantValueMap = constantValueMap.updated(exp, None)
                                 }
                             case lat.Str(s) =>
                                 s match {
-                                    case Constant(str) => SchemeValue(maf.language.sexp.Value.String(str), program.idn)
-                                    case _ => {}
+                                    case Constant(str) => SchemeValue(maf.language.sexp.Value.String(str), exp.idn)
+                                    case _ => constantValueMap = constantValueMap.updated(exp, None)
                                 }
                             case _ => {}
                         }

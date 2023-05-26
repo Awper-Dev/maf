@@ -514,7 +514,7 @@ object OptimizeProgram extends App:
 
             renamed = SchemeRenamer.rename(program)
             //val analysis = SchemeAnalyses.contextInsensitiveAnalysis(renamed)
-
+        System.err.nn.println(renamed.prettyString())
         val garbageCollection = gc
         val analysis = SchemeAnalyses.modflocalAnalysis(renamed, k)
         analysis.setGarbageCollection(garbageCollection)
@@ -526,12 +526,15 @@ object OptimizeProgram extends App:
         //println("optimizing...")
         //println(analysis.constantValueMap)
 
+        analysis.constantValueMap.foreach(println)
+
 
         val result: SchemeExp = optimize(renamed, analysis.constantValueMap)
         "\n" + "Parameters: " + "k: " + k + " garbage collection: " + garbageCollection + "\n" + "Amount of optimizations: " + counter + "\n" + "Expression counts: " + expressionCounter + "\n" + result.prettyString()
         result.prettyString()
 
-    println(optimizeProgram(Reader.loadFile("test/optimizations/constant-folding.scm"), true, 1, false))
+    //println(optimizeProgram(Reader.loadFile("test/optimizations/constant-folding.scm"), true, 1, false))
+    println(optimizeProgram(Reader.loadFile("test/R5RS/scp1/haha.scm"), false, 1, false))
     //println(fullyOptimize(Reader.loadFile("test/optimizations/constant-folding.scm"), true, 1))
     //fullyOptimize(Reader.loadFile("test/optimizations/constant-folding.scm"), false, 0)
 
