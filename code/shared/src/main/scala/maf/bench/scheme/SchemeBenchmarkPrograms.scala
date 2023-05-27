@@ -69,6 +69,7 @@ object SchemeBenchmarkPrograms:
       "circus.scm" // Vararg append not supported by concrete interpreter.
     )
     lazy val bench: Set[String] = fromFolder("test/R5RS/scp-repeated")()
+    lazy val bench2: Set[String] = fromFolder("test/R5RS/scp-optimized-repeated")()
     lazy val scp1Working: Set[String] = fromFolder("test/R5RS/scp1")(
       "circus.scm",
       "addition.scm",
