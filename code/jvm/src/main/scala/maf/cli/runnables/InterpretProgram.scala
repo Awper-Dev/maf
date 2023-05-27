@@ -36,8 +36,10 @@ object InterpretProgram extends App:
           nums = diff :: nums
 
       catch case ProgramError(msg) => System.err.nn.println(msg)
-
-    for (a <- 1 to 30) do
+    println("------------")
+    println(str)
+    println(nums)
+    /*for (a <- 1 to 30) do
       try
         val newText = OptimizeProgram.fullyOptimize(text, true, 1, false)
         val start2 = System.currentTimeMillis()
@@ -58,5 +60,6 @@ object InterpretProgram extends App:
     println("----------")
     println(str)
     println("regular: " + nums)
-    println("optimized: " + nums)
-  SchemeBenchmarkPrograms.scp1Working.foreach((program: String) => benchmarkFile(program))
+    println("optimized: " + nums)*/
+  SchemeBenchmarkPrograms.bench.foreach(benchmarkFile)
+  //benchmarkFile("test/R5RS/scp-repeated/add-to-end.scm")
