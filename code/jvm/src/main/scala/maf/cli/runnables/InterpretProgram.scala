@@ -61,5 +61,5 @@ object InterpretProgram extends App:
     println(str)
     println("regular: " + nums)
     println("optimized: " + nums)*/
-  SchemeBenchmarkPrograms.bench2.foreach(benchmarkFile)
+  SchemeBenchmarkPrograms.bench3.foreach(benchmarkFile)
   //benchmarkFile("test/R5RS/scp-repeated/add-to-end.scm")

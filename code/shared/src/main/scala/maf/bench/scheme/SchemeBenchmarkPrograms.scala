@@ -70,6 +70,7 @@ object SchemeBenchmarkPrograms:
     )
     lazy val bench: Set[String] = fromFolder("test/R5RS/scp-repeated")()
     lazy val bench2: Set[String] = fromFolder("test/R5RS/scp-optimized-repeated")()
+    lazy val bench3: Set[String] = fromFolder("test/R5RS/last")()
     lazy val scp1Working: Set[String] = fromFolder("test/R5RS/scp1")(
       "circus.scm",
       "addition.scm",
