@@ -1,0 +1,153 @@
+;;; working on test/R5RS/scp1/flip2.scm
+
+other: k: 0 gc: false res: (88,Map(letRec -> 1),0)
+other: k: 1 gc: false res: (88,Map(letRec -> 1),0)
+other: k: 2 gc: false res: (88,Map(letRec -> 1),0)
+other: k: 3 gc: false res: (88,Map(letRec -> 1),0)
+other: k: 0 gc: true res: (88,Map(letRec -> 1),0)
+other: k: 1 gc: true res: (88,Map(letRec -> 1),0)
+other: k: 2 gc: true res: (88,Map(letRec -> 1),0)
+other: k: 3 gc: true res: (88,Map(letRec -> 1),0)
+---------------------
+;;; working on test/R5RS/scp1/cashdesk-counter.scm
+
+other: k: 0 gc: false res: (0,Map(),0)
+other: k: 1 gc: false res: (392,Map(letRec -> 1),0)
+other: k: 2 gc: false res: (392,Map(letRec -> 1),0)
+other: k: 3 gc: false res: (392,Map(letRec -> 1),0)
+other: k: 0 gc: true res: (25,Map(functionCall -> 4, var -> 1),0)
+other: k: 1 gc: true res: (392,Map(letRec -> 1),0)
+other: k: 2 gc: true res: (392,Map(letRec -> 1),0)
+other: k: 3 gc: true res: (392,Map(letRec -> 1),0)
+---------------------
+;;; working on test/R5RS/scp1/ring-copy.scm
+
+other: k: 0 gc: false res: (682,Map(letRec -> 1),0)
+other: k: 1 gc: false res: (682,Map(letRec -> 1),0)
+other: k: 2 gc: false res: (682,Map(letRec -> 1),0)
+other: k: 3 gc: false res: (682,Map(letRec -> 1),0)
+other: k: 0 gc: true res: (682,Map(letRec -> 1),0)
+other: k: 1 gc: true res: (682,Map(letRec -> 1),0)
+other: k: 2 gc: true res: (682,Map(letRec -> 1),0)
+other: k: 3 gc: true res: (682,Map(letRec -> 1),0)
+---------------------
+;;; working on test/R5RS/scp1/third-root.scm
+
+other: k: 0 gc: false res: (12,Map(var -> 3, functionCall -> 1),0)
+other: k: 1 gc: false res: (12,Map(var -> 3, functionCall -> 1),0)
+other: k: 2 gc: false res: (12,Map(var -> 3, functionCall -> 1),0)
+other: k: 3 gc: false res: (12,Map(var -> 3, functionCall -> 1),0)
+other: k: 0 gc: true res: (117,Map(letRec -> 1),0)
+other: k: 1 gc: true res: (117,Map(letRec -> 1),0)
+other: k: 2 gc: true res: (117,Map(letRec -> 1),0)
+other: k: 3 gc: true res: (117,Map(letRec -> 1),0)
+---------------------
+;;; working on test/R5RS/scp1/add-to-end.scm
+
+other: k: 0 gc: false res: (127,Map(ifStatement -> 2, var -> 4, functionCall -> 3),0)
+other: k: 1 gc: false res: (140,Map(ifStatement -> 2, var -> 4, functionCall -> 4),0)
+other: k: 2 gc: false res: (163,Map(ifStatement -> 3, var -> 4, functionCall -> 3),0)
+other: k: 3 gc: false res: (163,Map(ifStatement -> 3, var -> 4, functionCall -> 3),0)
+other: k: 0 gc: true res: (183,Map(ifStatement -> 4, var -> 8, functionCall -> 3),0)
+other: k: 1 gc: true res: (183,Map(ifStatement -> 4, var -> 8, functionCall -> 3),0)
+other: k: 2 gc: true res: (183,Map(ifStatement -> 4, var -> 8, functionCall -> 3),0)
+other: k: 3 gc: true res: (183,Map(ifStatement -> 4, var -> 8, functionCall -> 3),0)
+---------------------
+;;; working on test/R5RS/scp1/flip.scm
+
+other: k: 0 gc: false res: (83,Map(letRec -> 1),0)
+other: k: 1 gc: false res: (83,Map(letRec -> 1),0)
+other: k: 2 gc: false res: (83,Map(letRec -> 1),0)
+other: k: 3 gc: false res: (83,Map(letRec -> 1),0)
+other: k: 0 gc: true res: (83,Map(letRec -> 1),0)
+other: k: 1 gc: true res: (83,Map(letRec -> 1),0)
+other: k: 2 gc: true res: (83,Map(letRec -> 1),0)
+other: k: 3 gc: true res: (83,Map(letRec -> 1),0)
+---------------------
+;;; working on test/R5RS/scp1/calc-e-and-cos.scm
+
+other: k: 0 gc: false res: (19,Map(var -> 7, functionCall -> 1),0)
+other: k: 1 gc: false res: (19,Map(var -> 7, functionCall -> 1),0)
+other: k: 2 gc: false res: (19,Map(var -> 7, functionCall -> 1),0)
+other: k: 3 gc: false res: (19,Map(var -> 7, functionCall -> 1),0)
+other: k: 0 gc: true res: (365,Map(letRec -> 1),0)
+other: k: 1 gc: true res: (365,Map(letRec -> 1),0)
+other: k: 2 gc: true res: (365,Map(letRec -> 1),0)
+other: k: 3 gc: true res: (365,Map(letRec -> 1),0)
+---------------------
+;;; working on test/R5RS/scp1/simpson-integral.scm
+
+other: k: 0 gc: false res: (34,Map(var -> 9, functionCall -> 3),0)
+other: k: 1 gc: false res: (34,Map(var -> 9, functionCall -> 3),0)
+other: k: 2 gc: false res: (34,Map(var -> 9, functionCall -> 3),0)
+other: k: 3 gc: false res: (34,Map(var -> 9, functionCall -> 3),0)
+other: k: 0 gc: true res: (289,Map(letRec -> 1),0)
+other: k: 1 gc: true res: (289,Map(letRec -> 1),0)
+other: k: 2 gc: true res: (289,Map(letRec -> 1),0)
+other: k: 3 gc: true res: (289,Map(letRec -> 1),0)
+---------------------
+;;; working on test/R5RS/scp1/haha.scm
+
+other: k: 0 gc: false res: (118,Map(ifStatement -> 2, var -> 2, functionCall -> 2),0)
+other: k: 1 gc: false res: (118,Map(ifStatement -> 2, var -> 2, functionCall -> 2),0)
+other: k: 2 gc: false res: (123,Map(ifStatement -> 2, var -> 2, functionCall -> 3),0)
+other: k: 3 gc: false res: (123,Map(ifStatement -> 2, var -> 2, functionCall -> 3),0)
+other: k: 0 gc: true res: (122,Map(var -> 4, ifStatement -> 2, functionCall -> 2),0)
+other: k: 1 gc: true res: (122,Map(var -> 4, ifStatement -> 2, functionCall -> 2),0)
+other: k: 2 gc: true res: (392,Map(letRec -> 1),0)
+other: k: 3 gc: true res: (392,Map(letRec -> 1),0)
+---------------------
+;;; working on test/R5RS/scp1/counter.scm
+
+other: k: 0 gc: false res: (436,Map(letRec -> 1),0)
+other: k: 1 gc: false res: (436,Map(letRec -> 1),0)
+other: k: 2 gc: false res: (436,Map(letRec -> 1),0)
+other: k: 3 gc: false res: (436,Map(letRec -> 1),0)
+other: k: 0 gc: true res: (436,Map(letRec -> 1),0)
+other: k: 1 gc: true res: (436,Map(letRec -> 1),0)
+other: k: 2 gc: true res: (436,Map(letRec -> 1),0)
+other: k: 3 gc: true res: (436,Map(letRec -> 1),0)
+---------------------
+;;; working on test/R5RS/scp1/leap-year.scm
+
+other: k: 0 gc: false res: (14,Map(var -> 5, functionCall -> 1),0)
+other: k: 1 gc: false res: (294,Map(letRec -> 1),0)
+other: k: 2 gc: false res: (294,Map(letRec -> 1),0)
+other: k: 3 gc: false res: (294,Map(letRec -> 1),0)
+other: k: 0 gc: true res: (294,Map(letRec -> 1),0)
+other: k: 1 gc: true res: (294,Map(letRec -> 1),0)
+other: k: 2 gc: true res: (294,Map(letRec -> 1),0)
+other: k: 3 gc: true res: (294,Map(letRec -> 1),0)
+---------------------
+;;; working on test/R5RS/scp1/list-compare-n.scm
+
+other: k: 0 gc: false res: (642,Map(letRec -> 1),0)
+other: k: 1 gc: false res: (128,Map(functionCall -> 8),0)
+other: k: 2 gc: false res: (210,Map(functionCall -> 10),0)
+other: k: 3 gc: false res: (338,Map(functionCall -> 12, var -> 7),0)
+other: k: 0 gc: true res: (642,Map(letRec -> 1),0)
+other: k: 1 gc: true res: (642,Map(letRec -> 1),0)
+other: k: 2 gc: true res: (642,Map(letRec -> 1),0)
+other: k: 3 gc: true res: (642,Map(letRec -> 1),0)
+---------------------
+;;; working on test/R5RS/scp1/find-cycles.scm
+
+other: k: 0 gc: false res: (12,Map(functionCall -> 2),0)
+other: k: 1 gc: false res: (41,Map(functionCall -> 5, var -> 3),0)
+other: k: 2 gc: false res: (41,Map(functionCall -> 5, var -> 3),0)
+other: k: 3 gc: false res: (276,Map(letRec -> 1),0)
+other: k: 0 gc: true res: (276,Map(letRec -> 1),0)
+other: k: 1 gc: true res: (276,Map(letRec -> 1),0)
+other: k: 2 gc: true res: (276,Map(letRec -> 1),0)
+other: k: 3 gc: true res: (276,Map(letRec -> 1),0)
+---------------------
+;;; working on test/R5RS/scp1/fast-multiply.scm
+
+other: k: 0 gc: false res: (0,Map(),0)
+other: k: 1 gc: false res: (0,Map(),0)
+other: k: 2 gc: false res: (0,Map(),0)
+other: k: 3 gc: false res: (18,Map(functionCall -> 2),0)
+other: k: 0 gc: true res: (213,Map(letRec -> 1),0)
+other: k: 1 gc: true res: (213,Map(letRec -> 1),0)
+other: k: 2 gc: true res: (213,Map(letRec -> 1),0)
+other: k: 3 gc: true res: (213,Map(letRec -> 1),0)

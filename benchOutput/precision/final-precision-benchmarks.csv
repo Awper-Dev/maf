@@ -1,0 +1,15 @@
+benchmark,K0-NO_GC,K1-NO_GC,K2-NO_GC,K3-NO_GC,K0-GC,K1-GC,K2-GC,K3-GC
+test/R5RS/scp1/add-to-end.scm,3,3,3,3,2,2,2,2
+test/R5RS/scp1/calc-e-and-cos.scm,6,5,5,5,0,0,0,0
+test/R5RS/scp1/cashdesk-counter.scm,11,3,3,3,5,3,3,3
+test/R5RS/scp1/counter.scm,2,2,2,2,2,2,2,2
+test/R5RS/scp1/fast-multiply.scm,6,TIMEOUT (>= 6),TIMEOUT (>= 6),6,0,0,0,0
+test/R5RS/scp1/find-cycles.scm,4,4,4,0,0,0,0,0
+test/R5RS/scp1/flip.scm,0,0,0,0,0,0,0,0
+test/R5RS/scp1/flip2.scm,0,0,0,0,0,0,0,0
+test/R5RS/scp1/haha.scm,5,5,5,5,5,5,2,2
+test/R5RS/scp1/leap-year.scm,4,0,0,0,0,0,0,0
+test/R5RS/scp1/list-compare-n.scm,TIMEOUT (>= 3),TIMEOUT (>= 11),TIMEOUT (>= 11),TIMEOUT (>= 5),0,0,0,0
+test/R5RS/scp1/ring-copy.scm,5,2,2,1,5,2,1,1
+test/R5RS/scp1/simpson-integral.scm,7,6,6,6,0,0,0,0
+test/R5RS/scp1/third-root.scm,3,1,1,1,0,0,0,0
